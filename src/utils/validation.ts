@@ -1,0 +1,390 @@
+/**
+ * Validation utilities for Claude Proxy v3
+ */
+
+import { ClaudeMessagesRequest, ClaudeTokenCountingRequest, ClaudeContent, ThinkingConfigParam } from '../types/claude';
+import { ValidationError } from './errors';
+
+/**
+ * Validate Claude messages request
+ */
+export function validateClaudeMessagesRequest(
+  request: ClaudeMessagesRequest,
+  modelId?: string
+): void {
+  // Validate required fields
+  if (!request.messages || !Array.isArray(request.messages)) {
+    throw new ValidationError('messages field is required and must be an array');
+  }
+
+  if (request.messages.length === 0) {
+    throw new ValidationError('messages array must not be empty');
+  }
+
+  // Validate messages content and limits
+  if (request.messages.length > 100000) {
+    throw new ValidationError('messages array cannot exceed 100,000 messages per request');
+  }
+
+  for (let i = 0; i < request.messages.length; i++) {
+    validateClaudeMessage(request.messages[i], `messages[${i}]`);
+
+    // Check for consecutive same-role messages (they will be combined)
+    if (i > 0 && request.messages[i].role === request.messages[i - 1].role) {
+      console.warn(`Consecutive ${request.messages[i].role} messages at index ${i} will be combined into a single turn`);
+    }
+  }
+
+  // Validate model
+  if (!modelId && !request.model) {
+    throw new ValidationError('Either model must be specified in URL or in request body');
+  }
+
+  // Validate max_tokens
+  if (request.max_tokens !== undefined) {
+    if (typeof request.max_tokens !== 'number') {
+      throw new ValidationError('max_tokens must be a number');
+    }
+    if (request.max_tokens < 1) {
+      throw new ValidationError('max_tokens must be at least 1');
+    }
+    if (request.max_tokens > 100000) {
+      throw new ValidationError('max_tokens cannot exceed 100,000');
+    }
+  }
+
+  // Validate temperature
+  if (request.temperature !== undefined) {
+    if (typeof request.temperature !== 'number') {
+      throw new ValidationError('temperature must be a number');
+    }
+    if (request.temperature < 0 || request.temperature > 1) {
+      throw new ValidationError('temperature must be between 0 and 1');
+    }
+  }
+
+  // Validate top_p
+  if (request.top_p !== undefined) {
+    if (typeof request.top_p !== 'number') {
+      throw new ValidationError('top_p must be a number');
+    }
+    if (request.top_p < 0 || request.top_p > 1) {
+      throw new ValidationError('top_p must be between 0 and 1');
+    }
+  }
+
+  // Validate top_k
+  if (request.top_k !== undefined) {
+    if (typeof request.top_k !== 'number') {
+      throw new ValidationError('top_k must be a number');
+    }
+    if (request.top_k < 1 || request.top_k > 1000) {
+      throw new ValidationError('top_k must be between 1 and 1000');
+    }
+  }
+
+  // Validate thinking parameter
+  if (request.thinking !== undefined) {
+    validateThinkingConfig(request.thinking, 'thinking');
+  }
+
+  // Validate stop_sequences
+  if (request.stop_sequences !== undefined) {
+    if (!Array.isArray(request.stop_sequences)) {
+      throw new ValidationError('stop_sequences must be an array');
+    }
+    for (let i = 0; i < request.stop_sequences.length; i++) {
+      if (typeof request.stop_sequences[i] !== 'string') {
+        throw new ValidationError(`stop_sequences[${i}] must be a string`);
+      }
+    }
+  }
+
+  // Validate metadata (optional, not in current Claude API spec but included for future compatibility)
+  if ((request as any).metadata !== undefined) {
+    if (typeof (request as any).metadata !== 'object' || (request as any).metadata === null) {
+      throw new ValidationError('metadata must be an object');
+    }
+    if ((request as any).metadata.user_id !== undefined && typeof (request as any).metadata.user_id !== 'string') {
+      throw new ValidationError('metadata.user_id must be a string');
+    }
+  }
+
+  // Validate stream parameter
+  if (request.stream !== undefined && typeof request.stream !== 'boolean') {
+    throw new ValidationError('stream must be a boolean');
+  }
+}
+
+/**
+ * Validate Claude message
+ */
+export function validateClaudeMessage(
+  message: any,
+  context: string = 'message'
+): void {
+  if (!message || typeof message !== 'object') {
+    throw new ValidationError(`${context} must be an object`);
+  }
+
+  // Validate role
+  if (!message.role || typeof message.role !== 'string') {
+    throw new ValidationError(`${context}.role is required and must be a string`);
+  }
+
+  const validRoles = ['user', 'assistant'];
+  if (!validRoles.includes(message.role)) {
+    throw new ValidationError(`${context}.role must be one of: ${validRoles.join(', ')}`);
+  }
+
+  // Validate content
+  validateClaudeContent(message.content, `${context}.content`);
+}
+
+/**
+ * Validate Claude content
+ */
+export function validateClaudeContent(
+  content: ClaudeContent,
+  context: string = 'content'
+): void {
+  if (typeof content === 'string') {
+    // Simple string content
+    if (content.trim().length === 0) {
+      throw new ValidationError(`${context} string must not be empty`);
+    }
+    return;
+  }
+
+  if (!Array.isArray(content)) {
+    throw new ValidationError(`${context} must be a string or array of content blocks`);
+  }
+
+  if (content.length === 0) {
+    throw new ValidationError(`${context} array must not be empty`);
+  }
+
+  for (let i = 0; i < content.length; i++) {
+    const block = content[i];
+    validateClaudeContentBlock(block, `${context}[${i}]`);
+  }
+}
+
+/**
+ * Validate Claude content block
+ */
+export function validateClaudeContentBlock(
+  block: any,
+  context: string = 'content block'
+): void {
+  if (!block || typeof block !== 'object') {
+    throw new ValidationError(`${context} must be an object`);
+  }
+
+  if (!block.type || typeof block.type !== 'string') {
+    throw new ValidationError(`${context}.type is required and must be a string`);
+  }
+
+  const validTypes = ['text', 'image', 'document', 'tool_use', 'tool_result', 'web_search_result', 'thinking'];
+  if (!validTypes.includes(block.type)) {
+    throw new ValidationError(`${context}.type must be one of: ${validTypes.join(', ')}`);
+  }
+
+  // Type-specific validation
+  switch (block.type) {
+    case 'text':
+      if (block.text === undefined || typeof block.text !== 'string') {
+        throw new ValidationError(`${context}.text is required for text blocks`);
+      }
+      break;
+
+    case 'image':
+      if (!block.source) {
+        throw new ValidationError(`${context}.source is required for image blocks`);
+      }
+      if (typeof block.source !== 'object') {
+        throw new ValidationError(`${context}.source must be an object`);
+      }
+      if (block.source.type !== 'base64' && block.source.type !== 'url') {
+        throw new ValidationError(`${context}.source.type must be 'base64' or 'url'`);
+      }
+      if (block.source.type === 'base64') {
+        if (!block.source.media_type || typeof block.source.media_type !== 'string') {
+          throw new ValidationError(`${context}.source.media_type is required for base64 images`);
+        }
+        if (!block.source.data || typeof block.source.data !== 'string') {
+          throw new ValidationError(`${context}.source.data is required for base64 images`);
+        }
+      } else if (block.source.type === 'url') {
+        if (!block.source.url || typeof block.source.url !== 'string') {
+          throw new ValidationError(`${context}.source.url is required for URL images`);
+        }
+        if (block.source.media_type && typeof block.source.media_type !== 'string') {
+          throw new ValidationError(`${context}.source.media_type must be a string if provided`);
+        }
+      }
+      break;
+
+    case 'document':
+      if (!block.source) {
+        throw new ValidationError(`${context}.source is required for document blocks`);
+      }
+      if (typeof block.source !== 'object') {
+        throw new ValidationError(`${context}.source must be an object`);
+      }
+      if (block.source.type !== 'base64' && block.source.type !== 'text') {
+        throw new ValidationError(`${context}.source.type must be 'base64' or 'text'`);
+      }
+      if (!block.source.media_type || typeof block.source.media_type !== 'string') {
+        throw new ValidationError(`${context}.source.media_type is required`);
+      }
+      if (!block.source.data || typeof block.source.data !== 'string') {
+        throw new ValidationError(`${context}.source.data is required`);
+      }
+      break;
+
+    case 'tool_use':
+      if (!block.id || typeof block.id !== 'string') {
+        throw new ValidationError(`${context}.id is required for tool_use blocks`);
+      }
+      if (!block.name || typeof block.name !== 'string') {
+        throw new ValidationError(`${context}.name is required for tool_use blocks`);
+      }
+      if (block.input === undefined) {
+        throw new ValidationError(`${context}.input is required for tool_use blocks`);
+      }
+      break;
+
+    case 'tool_result':
+      if (!block.tool_use_id || typeof block.tool_use_id !== 'string') {
+        throw new ValidationError(`${context}.tool_use_id is required for tool_result blocks`);
+      }
+      if (block.content === undefined) {
+        throw new ValidationError(`${context}.content is required for tool_result blocks`);
+      }
+      break;
+
+    case 'thinking':
+      if (block.text === undefined || typeof block.text !== 'string') {
+        throw new ValidationError(`${context}.text is required for thinking blocks`);
+      }
+      break;
+
+    case 'web_search_result':
+      if (!block.search_query || typeof block.search_query !== 'string') {
+        throw new ValidationError(`${context}.search_query is required for web_search_result blocks`);
+      }
+      if (!block.search_results || !Array.isArray(block.search_results)) {
+        throw new ValidationError(`${context}.search_results is required and must be an array`);
+      }
+      break;
+  }
+}
+
+/**
+ * Validate thinking configuration
+ */
+export function validateThinkingConfig(
+  thinking: ThinkingConfigParam,
+  context: string = 'thinking'
+): void {
+  if (!thinking || typeof thinking !== 'object') {
+    throw new ValidationError(`${context} must be an object`);
+  }
+
+  if (thinking.type === undefined) {
+    throw new ValidationError(`${context}.type is required`);
+  }
+
+  if (thinking.type !== 'enabled' && thinking.type !== 'disabled') {
+    throw new ValidationError(`${context}.type must be 'enabled' or 'disabled'`);
+  }
+
+  if (thinking.type === 'enabled') {
+    if (thinking.budget_tokens !== undefined) {
+      if (typeof thinking.budget_tokens !== 'number') {
+        throw new ValidationError(`${context}.budget_tokens must be a number`);
+      }
+      if (thinking.budget_tokens < 1024) {
+        throw new ValidationError(`${context}.budget_tokens must be at least 1,024`);
+      }
+      if (thinking.budget_tokens > 100000) {
+        throw new ValidationError(`${context}.budget_tokens cannot exceed 100,000`);
+      }
+    }
+  }
+}
+
+/**
+ * Validate Claude token counting request
+ */
+export function validateClaudeTokenCountingRequest(
+  request: ClaudeTokenCountingRequest
+): void {
+  // Validate required fields
+  if (!request.model) {
+    throw new ValidationError('model field is required');
+  }
+
+  if (!request.messages || !Array.isArray(request.messages)) {
+    throw new ValidationError('messages field is required and must be an array');
+  }
+
+  if (request.messages.length === 0) {
+    throw new ValidationError('messages array must not be empty');
+  }
+
+  // Validate messages content and limits
+  if (request.messages.length > 100000) {
+    throw new ValidationError('messages array cannot exceed 100,000 messages per request');
+  }
+
+  for (let i = 0; i < request.messages.length; i++) {
+    validateClaudeMessage(request.messages[i], `messages[${i}]`);
+
+    // Check for consecutive same-role messages (they will be combined)
+    if (i > 0 && request.messages[i].role === request.messages[i - 1].role) {
+      console.warn(`Consecutive ${request.messages[i].role} messages at index ${i} will be combined into a single turn`);
+    }
+  }
+
+  // Validate thinking parameter
+  if (request.thinking !== undefined) {
+    validateThinkingConfig(request.thinking, 'thinking');
+  }
+}
+
+/**
+ * Validate models request parameters
+ */
+export function validateModelsRequestParams(params: {
+  after_id?: string;
+  before_id?: string;
+  limit?: number;
+}): void {
+  if (params.after_id !== undefined && typeof params.after_id !== 'string') {
+    throw new ValidationError('after_id must be a string');
+  }
+
+  if (params.before_id !== undefined && typeof params.before_id !== 'string') {
+    throw new ValidationError('before_id must be a string');
+  }
+
+  if (params.limit !== undefined) {
+    if (typeof params.limit !== 'number') {
+      throw new ValidationError('limit must be a number');
+    }
+    if (params.limit < 1 || params.limit > 1000) {
+      throw new ValidationError('limit must be between 1 and 1000');
+    }
+  }
+}
+
+/**
+ * Validate headers for API key or authorization
+ */
+export function validateAuthHeaders(headers: Record<string, string>): void {
+  if (!headers['Authorization'] && !headers['x-api-key']) {
+    throw new ValidationError('Either Authorization header or x-api-key header is required');
+  }
+}

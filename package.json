@@ -1,0 +1,19 @@
+{
+  "name": "claude-proxy-v3",
+  "version": "3.0.0",
+  "description": "Claude API Proxy v3 - Complete Claude API surface support",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "typescript": "^5.6.2",
+    "wrangler": "^4.60.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

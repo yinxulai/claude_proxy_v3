@@ -1,0 +1,11 @@
+name = "claude-proxy-v3"
+main = "src/index.ts"
+compatibility_date = "2025-01-21"
+
+[vars]
+#HAIKU_MODEL_NAME = "claude-3-haiku-20240307"
+#HAIKU_BASE_URL = "https://api.anthropic.com"
+#HAIKU_API_KEY = ""
+
+[observability.logs]
+enabled = false
