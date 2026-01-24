@@ -1,6 +1,6 @@
 # Claude Proxy v3
 
-A complete Claude API proxy implementation that supports the full Claude API surface, including Models API, Token Counting API, and extended thinking support.
+A complete Claude API proxy new implementation that supports the full Claude API surface, including Models API, Token Counting API, and extended thinking support.
 
 ## ✨ Features
 
@@ -302,3 +302,4 @@ MIT
 - [Claude API Documentation](https://docs.anthropic.com/claude/reference/)
 - [OpenAI API Documentation](https://platform.openai.com/docs/api-reference)
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
+- [Claude Proxy (v0)](https://github.com/tingxifa/claude_proxy) and a [fork(v0.1)](https://github.com/qidu/claude_proxy)
