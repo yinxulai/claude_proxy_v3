@@ -189,7 +189,17 @@ Count tokens in messages, including thinking configuration.
 
 ## 🔧 Dynamic Routing
 
-The proxy uses dynamic routing to forward requests to any OpenAI-compatible API:
+The proxy uses dynamic routing to forward requests to any OpenAI-compatible API.
+
+### Routing Direction
+
+Fixed routing `/v1/messages` requests to `/v1/chat/completions`, disable routing `/v1/messages` requests to upstream `/v1/messages`.
+
+Refer to `src/handlers/messages.ts`
+
+```
+targetUrl = targetUrl.replace('v1/messages', 'v1/chat/completions')
+```
 
 ### URL Format
 
