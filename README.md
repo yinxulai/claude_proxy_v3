@@ -36,11 +36,15 @@ npm install
 
 Edit `wrangler.toml` to set your environment variables:
 
+Counting tokens with local `tiktoken` when setting `LOCAL_TOKEN_COUNTING` to `true` 
+
 ```toml
 [vars]
 HAIKU_MODEL_NAME = "claude-3-haiku-20240307"
 HAIKU_BASE_URL = "https://api.anthropic.com"
 HAIKU_API_KEY = "your-api-key-here"
+LOCAL_TOKEN_COUNTING = "false"
+LOCAL_TOKEN_COUNTING_FACTOR = "4"
 ```
 
 ### 3. Develop Locally
@@ -57,7 +61,11 @@ npm run deploy
 
 ### 5. Test One Model or Test All Models
 
+comparing and testing API
+
 ```bash
+bash tests/test_v1_messages_api.sh
+
 bash tests/test_all_models.sh
 
 bash tests/test_shell.sh
