@@ -34,12 +34,9 @@ export async function handleModelsRequest(
   if (beforeId) targetApiUrl.searchParams.set('before', beforeId);
   if (limit) targetApiUrl.searchParams.set('limit', limit.toString());
 
-  // Log upstream request headers
-  console.log(`[${requestId}] [DEBUG] Upstream request headers:`, {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  });
+  // Log upstream request headers (without auth keys for security)
   console.log(`[${requestId}] [DEBUG] Upstream request URL:`, targetApiUrl.toString());
+  console.log(`[${requestId}] [DEBUG] Has auth headers:`, !!authHeaders['Authorization'] || !!authHeaders['x-api-key']);
 
   // Make request to target API
   const response = await fetch(targetApiUrl.toString(), {

@@ -45,15 +45,10 @@ export async function handleMessagesRequest(
   // Check if streaming is requested
   const isStreaming = claudeRequest.stream === true;
 
-  // Log upstream request headers
-  console.log(`[${requestId}] [DEBUG] Upstream request headers:`, {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  });
-  console.log(`[${requestId}] [DEBUG] Upstream request body:`, openaiRequest);
-
-  // Make request to target API
-  console.log(`[${requestId}] [DEBUG] Upstream request url: ${targetUrl}`)
+  // Log request info (without auth keys for security)
+  console.log(`[${requestId}] [DEBUG] Upstream request url: ${targetUrl}`);
+  console.log(`[${requestId}] [DEBUG] Has auth headers:`, !!authHeaders['Authorization'] || !!authHeaders['x-api-key']);
+  console.log(`[${requestId}] [DEBUG] Is streaming:`, isStreaming);
   const response = await fetch(targetUrl, {
     method: 'POST',
     headers: {

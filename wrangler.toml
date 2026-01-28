@@ -8,6 +8,8 @@ compatibility_date = "2025-01-21"
 #HAIKU_API_KEY = ""
 LOCAL_TOKEN_COUNTING = "false"
 LOCAL_TOKEN_COUNTING_FACTOR = "4"
+DEV_MODE=true
+ALLOWED_ORIGINS="*"
 
 [observability.logs]
 enabled = false

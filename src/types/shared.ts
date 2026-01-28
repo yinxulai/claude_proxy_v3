@@ -21,6 +21,20 @@ export interface Env {
      * Default: 4 (characters per token).
      */
     LOCAL_TOKEN_COUNTING_FACTOR?: string;
+
+    /**
+     * Comma-separated list of allowed CORS origins.
+     * If empty or not set, defaults to '*' (allow all).
+     * For production, set to your domain(s).
+     * Example: "https://example.com,https://app.example.com"
+     */
+    ALLOWED_ORIGINS?: string;
+
+    /**
+     * Development mode - allows all origins regardless of ALLOWED_ORIGINS.
+     * Set to "true" to enable dev mode with open CORS.
+     */
+    DEV_MODE?: string;
 }
 
 /**

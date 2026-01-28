@@ -122,12 +122,9 @@ async function handleApiBasedTokenCounting(
     targetUrl = targetUrl.replace('v1/messages/count_tokens', 'v1/chat/completions');
   }
 
-  // Log upstream request headers
-  console.log(`[${requestId}] [DEBUG] Upstream request headers:`, {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  });
-  console.log(`[${requestId}] [DEBUG] Upstream request body:`, openaiRequest);
+  // Log request info (without auth keys for security)
+  console.log(`[${requestId}] [DEBUG] Upstream request url: ${targetUrl}`);
+  console.log(`[${requestId}] [DEBUG] Has auth headers:`, !!authHeaders['Authorization'] || !!authHeaders['x-api-key']);
   console.log(`[${requestId}] [INFO] Using API-based token counting (may incur costs)`);
 
   // Make request to target API
@@ -147,13 +144,12 @@ async function handleApiBasedTokenCounting(
 
   // Parse target API response
   const responseText = await response.text();
-  console.log(`[${requestId}] [DEBUG] Upstream response body:`, responseText);
 
   const openaiResponse: OpenAIResponse = JSON.parse(responseText);
 
   // Extract input tokens from usage
   const inputTokens = openaiResponse.usage?.prompt_tokens ?? 0;
-  console.log(`[${requestId}] [DEBUG] Extracted prompt_tokens: ${inputTokens}`);
+  console.log(`[${requestId}] [DEBUG] Token count: ${inputTokens}`);
 
   // Build Claude format response
   const claudeResponse: ClaudeTokenCountingResponse = {
