@@ -94,7 +94,7 @@ export default {
           break;
 
         case 'token-counting':
-          response = await handleTokenCountingRequest(request, targetUrl, authHeaders, requestId);
+          response = await handleTokenCountingRequest(request, targetUrl, authHeaders, requestId, env);
           break;
 
         case 'messages':

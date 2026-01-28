@@ -9,6 +9,18 @@ export interface Env {
     HAIKU_MODEL_NAME: string;
     HAIKU_BASE_URL: string;
     HAIKU_API_KEY: string;
+
+    /**
+     * Enable local token counting (no API call).
+     * Set to "true" or "1" to enable.
+     */
+    LOCAL_TOKEN_COUNTING?: string;
+
+    /**
+     * Token estimation factor for local counting.
+     * Default: 4 (characters per token).
+     */
+    LOCAL_TOKEN_COUNTING_FACTOR?: string;
 }
 
 /**

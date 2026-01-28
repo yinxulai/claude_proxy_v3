@@ -2,23 +2,41 @@
  * Token Counting API handler for Claude Proxy v3
  *
  * Handles POST /v1/messages/count_tokens endpoint
+ *
+ * Features:
+ * - Supports both API-based and local token counting
+ * - Local counting is enabled via LOCAL_TOKEN_COUNTING=true environment variable
+ * - Falls back to API-based counting if local counting is disabled or fails
  */
 
+import { Env } from '../types/shared';
 import { ClaudeTokenCountingRequest, ClaudeTokenCountingResponse } from '../types/claude';
-import { OpenAITokenCountingRequest, OpenAITokenCountingResponse } from '../types/openai';
+import { OpenAIResponse, OpenAITokenCountingRequest } from '../types/openai';
 import { convertClaudeTokenCountingToOpenAI } from '../converters/claude-to-openai';
-import { convertOpenAITokenCountingToClaude } from '../converters/openai-to-claude';
 import { validateClaudeTokenCountingRequest, validateAuthHeaders } from '../utils/validation';
 import { handleTargetApiError } from '../utils/errors';
+import {
+  countClaudeRequestTokens,
+  getLocalTokenCountingConfig,
+  TokenCountingOptions
+} from '../utils/token-counting';
 
 /**
  * Handle token counting API request
+ *
+ * @param request - Incoming request
+ * @param targetUrl - Target API URL
+ * @param authHeaders - Authentication headers
+ * @param requestId - Request ID for logging
+ * @param env - Environment variables (Cloudflare Workers)
+ * @returns Response with token count
  */
 export async function handleTokenCountingRequest(
   request: Request,
   targetUrl: string,
   authHeaders: Record<string, string>,
-  requestId: string
+  requestId: string,
+  env?: Env
 ): Promise<Response> {
   // Parse request body
   const requestBody = await request.json() as ClaudeTokenCountingRequest;
@@ -28,6 +46,69 @@ export async function handleTokenCountingRequest(
   validateClaudeTokenCountingRequest(claudeRequest);
   validateAuthHeaders(authHeaders);
 
+  // Check if local token counting is enabled
+  const localConfig = getLocalTokenCountingConfig(env as Env | undefined);
+
+  if (localConfig.enabled) {
+    console.log(`[${requestId}] [INFO] Using local token counting (factor: ${localConfig.factor})`);
+    return handleLocalTokenCounting(claudeRequest, requestId, localConfig);
+  }
+
+  // Fall back to API-based token counting
+  return handleApiBasedTokenCounting(claudeRequest, targetUrl, authHeaders, requestId);
+}
+
+/**
+ * Handle token counting using local estimation
+ *
+ * This uses a character-based approximation for token counting.
+ * No API call is made, making it free and fast.
+ */
+function handleLocalTokenCounting(
+  claudeRequest: ClaudeTokenCountingRequest,
+  requestId: string,
+  localConfig: { enabled: boolean; factor: number }
+): Response {
+  const options: TokenCountingOptions = {
+    useLocalCounting: true,
+    charactersPerToken: localConfig.factor,
+    countWhitespace: true,
+  };
+
+  // Count tokens using local estimation
+  const inputTokens = countClaudeRequestTokens(claudeRequest, options);
+
+  console.log(`[${requestId}] [DEBUG] Local token count: ${inputTokens}`);
+
+  const response: ClaudeTokenCountingResponse = {
+    type: "token_count",
+    input_tokens: inputTokens,
+  };
+
+  return new Response(JSON.stringify(response), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-request-id': requestId,
+      'x-token-counting': 'local',
+    },
+  });
+}
+
+/**
+ * Handle token counting using API-based approach
+ *
+ * This sends a request to the target API's chat completions endpoint
+ * and extracts the usage information from the response.
+ *
+ * Note: This may incur API costs and make an actual API call.
+ */
+async function handleApiBasedTokenCounting(
+  claudeRequest: ClaudeTokenCountingRequest,
+  targetUrl: string,
+  authHeaders: Record<string, string>,
+  requestId: string
+): Promise<Response> {
   // Convert Claude request to OpenAI format
   const openaiRequest: OpenAITokenCountingRequest = convertClaudeTokenCountingToOpenAI(
     claudeRequest,
@@ -35,12 +116,19 @@ export async function handleTokenCountingRequest(
     requestId
   );
 
+  // Convert endpoint from Claude format to OpenAI format
+  // /v1/messages/count_tokens -> /v1/chat/completions
+  if (targetUrl.includes('v1/messages/count_tokens')) {
+    targetUrl = targetUrl.replace('v1/messages/count_tokens', 'v1/chat/completions');
+  }
+
   // Log upstream request headers
   console.log(`[${requestId}] [DEBUG] Upstream request headers:`, {
     'Content-Type': 'application/json',
     ...authHeaders,
   });
   console.log(`[${requestId}] [DEBUG] Upstream request body:`, openaiRequest);
+  console.log(`[${requestId}] [INFO] Using API-based token counting (may incur costs)`);
 
   // Make request to target API
   const response = await fetch(targetUrl, {
@@ -61,10 +149,17 @@ export async function handleTokenCountingRequest(
   const responseText = await response.text();
   console.log(`[${requestId}] [DEBUG] Upstream response body:`, responseText);
 
-  const openaiResponse: OpenAITokenCountingResponse = JSON.parse(responseText);
+  const openaiResponse: OpenAIResponse = JSON.parse(responseText);
 
-  // Convert to Claude format
-  const claudeResponse: ClaudeTokenCountingResponse = convertOpenAITokenCountingToClaude(openaiResponse);
+  // Extract input tokens from usage
+  const inputTokens = openaiResponse.usage?.prompt_tokens ?? 0;
+  console.log(`[${requestId}] [DEBUG] Extracted prompt_tokens: ${inputTokens}`);
+
+  // Build Claude format response
+  const claudeResponse: ClaudeTokenCountingResponse = {
+    type: "token_count",
+    input_tokens: inputTokens,
+  };
 
   // Return response with Claude headers
   return new Response(JSON.stringify(claudeResponse), {
@@ -72,6 +167,7 @@ export async function handleTokenCountingRequest(
     headers: {
       'Content-Type': 'application/json',
       'x-request-id': requestId,
+      'x-token-counting': 'api',
     },
   });
 }

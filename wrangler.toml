@@ -6,6 +6,8 @@ compatibility_date = "2025-01-21"
 #HAIKU_MODEL_NAME = "claude-3-haiku-20240307"
 #HAIKU_BASE_URL = "https://api.anthropic.com"
 #HAIKU_API_KEY = ""
+LOCAL_TOKEN_COUNTING = "false"
+LOCAL_TOKEN_COUNTING_FACTOR = "4"
 
 [observability.logs]
 enabled = false
