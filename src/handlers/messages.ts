@@ -4,6 +4,7 @@
  * Handles POST /v1/messages endpoint with extended thinking support
  */
 
+import { Env } from '../types/shared';
 import { ClaudeMessagesRequest, ClaudeMessagesResponse } from '../types/claude';
 import { OpenAIRequest, OpenAIResponse } from '../types/openai';
 import { convertClaudeToOpenAIRequest } from '../converters/claude-to-openai';
@@ -20,14 +21,20 @@ export async function handleMessagesRequest(
   targetUrl: string,
   authHeaders: Record<string, string>,
   requestId: string,
-  modelId?: string
+  modelId?: string,
+  env?: Env
 ): Promise<Response> {
   // Parse request body
   const requestBody = await request.json() as ClaudeMessagesRequest;
   const claudeRequest = requestBody;
 
+  // Calculate max image data size from environment or use default
+  const maxImageDataSize = env?.IMAGE_BLOCK_DATA_MAX_SIZE
+    ? parseInt(env.IMAGE_BLOCK_DATA_MAX_SIZE, 10)
+    : 1 * 1024 * 1024; // Default 1MB
+
   // Validate request
-  validateClaudeMessagesRequest(claudeRequest, modelId);
+  validateClaudeMessagesRequest(claudeRequest, modelId, maxImageDataSize);
   validateAuthHeaders(authHeaders);
 
   // Use model from URL if provided, otherwise from request

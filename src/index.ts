@@ -227,7 +227,7 @@ export default {
           break;
 
         case 'messages':
-          response = await handleMessagesRequest(request, targetUrl, authHeaders, requestId, modelId);
+          response = await handleMessagesRequest(request, targetUrl, authHeaders, requestId, modelId, env);
           break;
 
         default:

@@ -42,12 +42,17 @@ export async function handleTokenCountingRequest(
   const requestBody = await request.json() as ClaudeTokenCountingRequest;
   const claudeRequest = requestBody;
 
+  // Calculate max image data size from environment or use default
+  const maxImageDataSize = env?.IMAGE_BLOCK_DATA_MAX_SIZE
+    ? parseInt(env.IMAGE_BLOCK_DATA_MAX_SIZE, 10)
+    : 1 * 1024 * 1024; // Default 1MB
+
   // Validate request
-  validateClaudeTokenCountingRequest(claudeRequest);
+  validateClaudeTokenCountingRequest(claudeRequest, maxImageDataSize);
   validateAuthHeaders(authHeaders);
 
-  // Check if local token counting is enabled
-  const localConfig = getLocalTokenCountingConfig(env as Env | undefined);
+  // Use env for local config (cast to Record<string, string> for compatibility)
+  const localConfig = getLocalTokenCountingConfig(env as unknown as Record<string, string> | undefined);
 
   if (localConfig.enabled) {
     console.log(`[${requestId}] [INFO] Using local token counting (factor: ${localConfig.factor})`);

@@ -5,12 +5,16 @@
 import { ClaudeMessagesRequest, ClaudeTokenCountingRequest, ClaudeContent, ThinkingConfigParam } from '../types/claude';
 import { ValidationError } from './errors';
 
+// Default max image block data size: 10MB
+const DEFAULT_IMAGE_DATA_MAX_SIZE = 10 * 1024 * 1024;
+
 /**
  * Validate Claude messages request
  */
 export function validateClaudeMessagesRequest(
   request: ClaudeMessagesRequest,
-  modelId?: string
+  modelId?: string,
+  maxImageDataSize: number = DEFAULT_IMAGE_DATA_MAX_SIZE
 ): void {
   // Validate required fields
   if (!request.messages || !Array.isArray(request.messages)) {
@@ -27,7 +31,7 @@ export function validateClaudeMessagesRequest(
   }
 
   for (let i = 0; i < request.messages.length; i++) {
-    validateClaudeMessage(request.messages[i], `messages[${i}]`);
+    validateClaudeMessage(request.messages[i], `messages[${i}]`, maxImageDataSize);
 
     // Check for consecutive same-role messages (they will be combined)
     if (i > 0 && request.messages[i].role === request.messages[i - 1].role) {
@@ -121,7 +125,8 @@ export function validateClaudeMessagesRequest(
  */
 export function validateClaudeMessage(
   message: any,
-  context: string = 'message'
+  context: string = 'message',
+  maxImageDataSize: number = DEFAULT_IMAGE_DATA_MAX_SIZE
 ): void {
   if (!message || typeof message !== 'object') {
     throw new ValidationError(`${context} must be an object`);
@@ -138,7 +143,7 @@ export function validateClaudeMessage(
   }
 
   // Validate content
-  validateClaudeContent(message.content, `${context}.content`);
+  validateClaudeContent(message.content, `${context}.content`, maxImageDataSize);
 }
 
 /**
@@ -146,7 +151,8 @@ export function validateClaudeMessage(
  */
 export function validateClaudeContent(
   content: ClaudeContent,
-  context: string = 'content'
+  context: string = 'content',
+  maxImageDataSize: number = DEFAULT_IMAGE_DATA_MAX_SIZE
 ): void {
   if (typeof content === 'string') {
     // Simple string content
@@ -166,7 +172,7 @@ export function validateClaudeContent(
 
   for (let i = 0; i < content.length; i++) {
     const block = content[i];
-    validateClaudeContentBlock(block, `${context}[${i}]`);
+    validateClaudeContentBlock(block, `${context}[${i}]`, maxImageDataSize);
   }
 }
 
@@ -175,7 +181,8 @@ export function validateClaudeContent(
  */
 export function validateClaudeContentBlock(
   block: any,
-  context: string = 'content block'
+  context: string = 'content block',
+  maxImageDataSize: number = DEFAULT_IMAGE_DATA_MAX_SIZE
 ): void {
   if (!block || typeof block !== 'object') {
     throw new ValidationError(`${context} must be an object`);
@@ -214,6 +221,9 @@ export function validateClaudeContentBlock(
         }
         if (!block.source.data || typeof block.source.data !== 'string') {
           throw new ValidationError(`${context}.source.data is required for base64 images`);
+        }
+        if (block.source.data.length > maxImageDataSize) {
+          throw new ValidationError(`${context}.source.data exceeds maximum size of ${maxImageDataSize} bytes`);
         }
       } else if (block.source.type === 'url') {
         if (!block.source.url || typeof block.source.url !== 'string') {
@@ -319,7 +329,8 @@ export function validateThinkingConfig(
  * Validate Claude token counting request
  */
 export function validateClaudeTokenCountingRequest(
-  request: ClaudeTokenCountingRequest
+  request: ClaudeTokenCountingRequest,
+  maxImageDataSize: number = DEFAULT_IMAGE_DATA_MAX_SIZE
 ): void {
   // Validate required fields
   if (!request.model) {
@@ -340,7 +351,7 @@ export function validateClaudeTokenCountingRequest(
   }
 
   for (let i = 0; i < request.messages.length; i++) {
-    validateClaudeMessage(request.messages[i], `messages[${i}]`);
+    validateClaudeMessage(request.messages[i], `messages[${i}]`, maxImageDataSize);
 
     // Check for consecutive same-role messages (they will be combined)
     if (i > 0 && request.messages[i].role === request.messages[i - 1].role) {

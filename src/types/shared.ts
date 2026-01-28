@@ -6,9 +6,9 @@ export interface Env {
     /**
      * Pre-configured route for a "haiku" model for easier access.
      */
-    HAIKU_MODEL_NAME: string;
-    HAIKU_BASE_URL: string;
-    HAIKU_API_KEY: string;
+    HAIKU_MODEL_NAME?: string;
+    HAIKU_BASE_URL?: string;
+    HAIKU_API_KEY?: string;
 
     /**
      * Enable local token counting (no API call).
@@ -43,6 +43,25 @@ export interface Env {
      * Example: "127.0.0.1,localhost,api.example.com"
      */
     ALLOWED_HOSTS?: string;
+
+    /**
+     * Maximum size for image block base64 data in bytes.
+     * Defaults to 10485760 (10MB).
+     * Example: "10485760" for 10MB
+     */
+    IMAGE_BLOCK_DATA_MAX_SIZE?: string;
+
+    /**
+     * Fixed route target URL for routing requests.
+     * Example: "https://api.example.com"
+     */
+    FIXED_ROUTE_TARGET_URL?: string;
+
+    /**
+     * Fixed route path prefix for routing requests.
+     * Example: "/api"
+     */
+    FIXED_ROUTE_PATH_PREFIX?: string;
 }
 
 /**
