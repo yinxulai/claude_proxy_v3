@@ -35,6 +35,14 @@ export interface Env {
      * Set to "true" to enable dev mode with open CORS.
      */
     DEV_MODE?: string;
+
+    /**
+     * Comma-separated list of allowed target hosts for dynamic routing.
+     * Only hosts in this list will be allowed for SSRF protection.
+     * Defaults to "127.0.0.1" if not set.
+     * Example: "127.0.0.1,localhost,api.example.com"
+     */
+    ALLOWED_HOSTS?: string;
 }
 
 /**

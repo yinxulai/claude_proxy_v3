@@ -12,6 +12,9 @@ import { validateBetaFeatures } from './beta-features';
 
 import { validateBetaFeatures as validateBetaFeaturesUtil } from './beta-features';
 
+// Default allowed hosts for SSRF protection
+const DEFAULT_ALLOWED_HOSTS = ['127.0.0.1', 'localhost'];
+
 export interface TargetConfig {
   targetUrl: string;
   targetPathPrefix: string;
@@ -21,6 +24,40 @@ export interface ParsedRoute {
   targetConfig: TargetConfig;
   claudeEndpoint: string;
   modelId?: string;
+}
+
+/**
+ * Validate if a host is allowed based on the ALLOWED_HOSTS environment variable
+ */
+export function isHostAllowed(host: string, allowedHostsEnv?: string): boolean {
+  const allowedHosts = allowedHostsEnv
+    ? allowedHostsEnv.split(',').map(h => h.trim().toLowerCase()).filter(h => h.length > 0)
+    : DEFAULT_ALLOWED_HOSTS;
+
+  const normalizedHost = host.toLowerCase();
+
+  return allowedHosts.some(allowed => {
+    // Exact match
+    if (allowed === normalizedHost) {
+      return true;
+    }
+    // Handle wildcard domain (e.g., "*.example.com")
+    if (allowed.startsWith('*.')) {
+      const domain = allowed.slice(2);
+      return normalizedHost.endsWith(domain);
+    }
+    return false;
+  });
+}
+
+/**
+ * Get list of allowed hosts from environment or defaults
+ */
+export function getAllowedHosts(allowedHostsEnv?: string): string[] {
+  if (!allowedHostsEnv) {
+    return DEFAULT_ALLOWED_HOSTS;
+  }
+  return allowedHostsEnv.split(',').map(h => h.trim()).filter(h => h.length > 0);
 }
 
 /**

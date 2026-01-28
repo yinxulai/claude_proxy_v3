@@ -5,7 +5,7 @@
  */
 
 import { Env } from './types/shared';
-import { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders } from './utils/routing';
+import { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed } from './utils/routing';
 import { createErrorResponse } from './utils/errors';
 import { handleModelsRequest } from './handlers/models';
 import { handleTokenCountingRequest } from './handlers/token-counting';
@@ -187,6 +187,13 @@ export default {
         const parsedRoute = parseDynamicRoute(path);
         const { targetConfig, claudeEndpoint } = parsedRoute;
         modelId = parsedRoute.modelId;
+
+        // SSRF protection: validate host against whitelist
+        const host = targetConfig.targetUrl.replace(/^https?:\/\//, '');
+        if (!isHostAllowed(host, env.ALLOWED_HOSTS)) {
+          console.warn(`[${requestId}] Host not allowed: ${host}. Allowed hosts: ${env.ALLOWED_HOSTS || '127.0.0.1, localhost'}`);
+          return createErrorResponse(new Error('Host not allowed'), requestId, 403);
+        }
 
         handlerType = getHandlerType(claudeEndpoint);
         targetUrl = buildTargetUrl(targetConfig, claudeEndpoint, modelId);
