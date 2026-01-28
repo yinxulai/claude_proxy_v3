@@ -158,20 +158,31 @@ export function buildTargetUrl(targetConfig: TargetConfig, endpoint: string, mod
 
 /**
  * Extract authentication headers from request
+ *
+ * Supports both Authorization and X-Api-Key headers.
+ * If X-Api-Key is provided but Authorization is missing,
+ * converts X-Api-Key to Authorization: Bearer format.
  */
 export function extractAuthHeaders(request: Request): Record<string, string> {
   const headers: Record<string, string> = {};
 
-  // Extract common authentication headers
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader) {
-    headers['Authorization'] = authHeader;
-  }
+  // Extract Authorization header
+  let authHeader = request.headers.get('Authorization');
 
-  // Extract API key headers
+  // Extract API key header
   const apiKeyHeader = request.headers.get('x-api-key');
-  if (apiKeyHeader) {
-    headers['x-api-key'] = apiKeyHeader;
+
+  // If X-Api-Key is provided but Authorization is missing, convert it
+  if (apiKeyHeader && !authHeader) {
+    // Check if X-Api-Key already has Bearer prefix
+    if (apiKeyHeader.startsWith('Bearer ')) {
+      headers['Authorization'] = apiKeyHeader;
+    } else {
+      headers['Authorization'] = `Bearer ${apiKeyHeader}`;
+    }
+    console.log(`[DEBUG] Converted X-Api-Key to Authorization header`);
+  } else if (authHeader) {
+    headers['Authorization'] = authHeader;
   }
 
   // Forward beta feature headers

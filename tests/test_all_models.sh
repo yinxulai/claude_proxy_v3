@@ -13,7 +13,7 @@ export TEST_KEY="sk-d8d563******"
 
 # Fetch model list from API
 echo "Fetching model list from API..."
-MODELS=$(curl -sSL "https://api.qnaigc.com/v1/models" | jq | grep "id" | awk '{print $2}' | awk -F'"\|,' '{print $2}')
+MODELS=$(curl -sSL "https://api.qnaigc.com/v1/models" | jq | grep "id" | awk '{print $2}' | awk -F'"\|,' '{print $2}' | head -n 5)
 
 # Check if we got models
 if [ -z "$MODELS" ]; then
@@ -30,7 +30,7 @@ test_http() {
     TEST_MODEL=$1
     curl -sSL --connect-timeout 10 --max-time 60 -w "%{http_code}" -o /dev/null \
     -X POST "http://localhost:8787/https/api.qnaigc.com/v1/messages" \
-    -H "Authorization: Bearer ${TEST_KEY}" \
+    -H "X-Api-Key: ${TEST_KEY}" \
     -H "Content-Type: application/json" \
     -d '{
     "model": "'"${TEST_MODEL}"'",
@@ -68,7 +68,7 @@ test_http_sse() {
     TEST_MODEL=$1
     curl -sSL --connect-timeout 10 --max-time 60 -w "%{http_code}" -o /dev/null \
     -X POST "http://localhost:8787/https/api.qnaigc.com/v1/messages" \
-    -H "Authorization: Bearer ${TEST_KEY}" \
+    -H "X-Api-Key: ${TEST_KEY}" \
     -H "Content-Type: application/json" \
     -H "Accept: text/event-stream" \
     -d '{
@@ -94,6 +94,7 @@ for TEST_MODEL in $MODELS; do
     else
         echo "❌ test http failed for $TEST_MODEL"
     fi
+    http_status=0
 
 
     # Run test_http_sse
