@@ -20,6 +20,8 @@ A_ENDPOINT="https://api.qnaigc.com/v1/messages"
 A_COUNT_ENDPOINT="https://api.qnaigc.com/v1/messages/count_tokens"
 B_ENDPOINT="http://localhost:8787/https/api.qnaigc.com/v1/messages"
 B_COUNT_ENDPOINT="http://localhost:8787/https/api.qnaigc.com/v1/messages/count_tokens"
+#B_ENDPOINT="http://localhost:8787/v1/messages"
+#B_COUNT_ENDPOINT="http://localhost:8787/v1/messages/count_tokens"
 
 # 颜色定义
 RED='\033[0;31m'

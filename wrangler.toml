@@ -11,5 +11,9 @@ LOCAL_TOKEN_COUNTING_FACTOR = "4"
 DEV_MODE=true
 ALLOWED_ORIGINS="*"
 
+# Fixed route target configuration
+FIXED_ROUTE_TARGET_URL = "https://api.qnaigc.com"
+FIXED_ROUTE_PATH_PREFIX = ""
+
 [observability.logs]
 enabled = false

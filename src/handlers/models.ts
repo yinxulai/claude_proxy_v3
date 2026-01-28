@@ -54,7 +54,6 @@ export async function handleModelsRequest(
 
   // Parse target API response
   const responseText = await response.text();
-  console.log(`[${requestId}] [DEBUG] Upstream response body:`, responseText);
 
   const openaiResponse: OpenAIModelsResponse = JSON.parse(responseText);
 

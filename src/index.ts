@@ -103,6 +103,49 @@ function handleOptionsRequest(request: Request, env: Env): Response {
 }
 
 /**
+ * Check if URL uses dynamic routing (starts with /http/ or /https/)
+ */
+function isDynamicRoute(path: string): boolean {
+  return path.startsWith('/http/') || path.startsWith('/https/');
+}
+
+/**
+ * Parse fixed route and return target configuration
+ * Fixed route: /v1/messages -> /v1/chat/completions
+ * Uses FIXED_ROUTE_TARGET_URL and FIXED_ROUTE_PATH_PREFIX from env
+ */
+function parseFixedRoute(path: string, env: Env): { targetUrl: string; targetEndpoint: string } {
+  const baseUrl = env.FIXED_ROUTE_TARGET_URL || 'https://api.example.com';
+  const pathPrefix = env.FIXED_ROUTE_PATH_PREFIX || '';
+
+  // Fixed route mapping: /v1/messages -> /v1/chat/completions
+  if (path === '/v1/messages' || path.startsWith('/v1/messages?')) {
+    return {
+      targetUrl: `${baseUrl}${pathPrefix}/v1/chat/completions`,
+      targetEndpoint: 'v1/chat/completions',
+    };
+  }
+
+  // Token counting endpoint
+  if (path === '/v1/messages/count_tokens' || path.startsWith('/v1/messages/count_tokens?')) {
+    return {
+      targetUrl: `${baseUrl}${pathPrefix}/v1/messages/count_tokens`,
+      targetEndpoint: 'v1/messages/count_tokens',
+    };
+  }
+
+  // Models endpoint
+  if (path === '/v1/models' || path.startsWith('/v1/models?')) {
+    return {
+      targetUrl: `${baseUrl}${pathPrefix}/v1/models`,
+      targetEndpoint: 'v1/models',
+    };
+  }
+
+  throw new Error(`Unsupported fixed route: ${path}`);
+}
+
+/**
  * Main request handler
  */
 export default {
@@ -134,15 +177,33 @@ export default {
         }
       }
 
-      // Parse dynamic routing from URL
-      const parsedRoute = parseDynamicRoute(path);
-      const { targetConfig, claudeEndpoint, modelId } = parsedRoute;
+      let targetUrl: string;
+      let handlerType: 'models' | 'token-counting' | 'messages';
+      let modelId: string | undefined;
 
-      // Determine handler type based on Claude endpoint
-      const handlerType = getHandlerType(claudeEndpoint);
+      // Determine routing mode based on URL path
+      if (isDynamicRoute(path)) {
+        // Dynamic routing: /https/api.qnaigc.com/v1/messages
+        const parsedRoute = parseDynamicRoute(path);
+        const { targetConfig, claudeEndpoint } = parsedRoute;
+        modelId = parsedRoute.modelId;
 
-      // Build target URL
-      const targetUrl = buildTargetUrl(targetConfig, claudeEndpoint, modelId);
+        handlerType = getHandlerType(claudeEndpoint);
+        targetUrl = buildTargetUrl(targetConfig, claudeEndpoint, modelId);
+      } else {
+        // Fixed routing: /v1/messages -> /v1/chat/completions
+        const fixedRoute = parseFixedRoute(path, env);
+        targetUrl = fixedRoute.targetUrl;
+
+        // Map endpoint to handler type
+        if (fixedRoute.targetEndpoint === 'v1/models') {
+          handlerType = 'models';
+        } else if (fixedRoute.targetEndpoint === 'v1/messages/count_tokens') {
+          handlerType = 'token-counting';
+        } else {
+          handlerType = 'messages';
+        }
+      }
 
       // Extract authentication headers
       const authHeaders = extractAuthHeaders(request);

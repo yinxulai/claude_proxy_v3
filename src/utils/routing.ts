@@ -2,9 +2,10 @@
  * Dynamic routing utility for Claude Proxy v3
  *
  * Handles URL patterns like:
- * - /https/api.groq.com/openai/v1/models/v1/models (Models API)
- * - /https/api.groq.com/openai/v1/models/llama3-70b-8192/v1/messages/count_tokens (Token Counting API)
- * - /https/api.groq.com/openai/v1/models/llama3-70b-8192/v1/messages (Messages API)
+ * - /v1/models (Models API)
+ * - /https/api.qnaigc.com/v1/models (Models API)
+ * - /https/api.qnaigc.com/openai/v1/models/llama3-70b-8192/v1/messages/count_tokens (Token Counting API)
+ * - /https/api.qnaigc.com/openai/v1/models/llama3-70b-8192/v1/messages (Messages API)
  */
 
 import { validateBetaFeatures } from './beta-features';
@@ -25,12 +26,14 @@ export interface ParsedRoute {
 /**
  * Parse dynamic routing URL
  *
+ * Expected format: /{claude_endpoint}
  * Expected format: /{protocol}{host}{path_prefix}/{model_id?}/{claude_endpoint}
  *
  * Examples:
- * - /https/api.groq.com/openai/v1/models/v1/models
- * - /https/api.groq.com/openai/v1/models/llama3-70b-8192/v1/messages
- * - /https/api.groq.com/openai/v1/models/llama3-70b-8192/v1/messages/count_tokens
+ * - /v1/models
+ * - /https/api.qnaigc.com/openai/v1/models
+ * - /https/api.qnaigc.com/openai/v1/models/llama3-70b-8192/v1/messages
+ * - /https/api.qnaigc.com/openai/v1/models/llama3-70b-8192/v1/messages/count_tokens
  */
 export function parseDynamicRoute(url: string): ParsedRoute {
   // Remove leading slash if present
@@ -52,7 +55,7 @@ export function parseDynamicRoute(url: string): ParsedRoute {
     throw new Error(`Invalid protocol: ${protocol}. Must be 'http' or 'https'`);
   }
 
-  // Second part is the host (e.g., api.groq.com)
+  // Second part is the host (e.g., api.qnaigc.com)
   let host = parts[1];
 
   // Find where the target API path ends and Claude endpoint begins

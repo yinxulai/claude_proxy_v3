@@ -83,7 +83,7 @@ async function handleNonStreamingResponse(
   try {
     // Parse target API response
     const responseText = await response.text();
-    console.log(`[${requestId}] [DEBUG] Upstream response body:`, responseText);
+    console.log(`[${requestId}] [DEBUG] Upstream response body.`);
 
     const openaiResponse: OpenAIResponse = JSON.parse(responseText);
 
