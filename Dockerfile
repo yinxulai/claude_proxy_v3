@@ -15,6 +15,8 @@ COPY src/ ./src/
 
 # Build server (CommonJS for Node.js)
 RUN npx tsc -p tsconfig.server.json
+# RUN npm install -g pm2
+RUN npm run build
 
 # Production image
 FROM node:20-alpine
@@ -33,5 +35,7 @@ COPY wrangler.toml ./
 EXPOSE 8788
 
 # Run the server
-CMD ["node", "dist/server.js"]
+# CMD ["pm2", "start", "src/server.ts", "-i", "8"]
+CMD ["npm", "run", "start"]
+# CMD ["node", "dist/server.js"]
 # CMD ["npm", "run", "dev"]
