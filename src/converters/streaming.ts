@@ -2,7 +2,7 @@
  * Streaming response converter from OpenAI SSE to Claude SSE
  */
 
-export function createStreamTransformer(model: string, requestId: string): Transformer<Uint8Array, Uint8Array> {
+export function createStreamTransformer(model: string, requestId: string) {
     let initialized = false;
     let buffer = "";
     const messageId = requestId || `msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`;

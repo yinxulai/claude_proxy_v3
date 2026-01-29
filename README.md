@@ -53,10 +53,18 @@ LOCAL_TOKEN_COUNTING_FACTOR = "4"
 npm run dev
 ```
 
+or
+```bash
+npx tsc -p tsconfig.server.json
+node dist/server.js
+```
+
 ### 4. Deploy
 
+Refer to `Dockerfile`
+
 ```bash
-npm run deploy
+# npm run deploy
 ```
 
 ### 5. Test One Model or Test All Models
