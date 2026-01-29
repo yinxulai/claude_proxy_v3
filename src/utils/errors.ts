@@ -72,14 +72,15 @@ export class OverLimitError extends ClaudeProxyError {
  */
 export function createErrorResponse(
   error: Error | ClaudeProxyError,
-  requestId?: string
+  requestId?: string,
+  customStatus?: number
 ): Response {
-  let status = 500;
+  let responseStatus = customStatus ?? 500;
   let type = 'error';
   let message = error.message;
 
   if (error instanceof ClaudeProxyError) {
-    status = error.status;
+    responseStatus = error.status;
     type = error.type;
   }
 
@@ -100,7 +101,7 @@ export function createErrorResponse(
   }
 
   return new Response(JSON.stringify(errorResponse), {
-    status,
+    status: responseStatus,
     headers,
   });
 }

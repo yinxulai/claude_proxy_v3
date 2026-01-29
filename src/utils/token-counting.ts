@@ -42,7 +42,7 @@ export function estimateTokenCount(
   text: string,
   options: TokenCountingOptions = DEFAULT_OPTIONS
 ): number {
-  const { charactersPerToken, countWhitespace } = { ...DEFAULT_OPTIONS, ...options };
+  const { charactersPerToken = 4, countWhitespace } = { ...DEFAULT_OPTIONS, ...options };
 
   if (!text || text.length === 0) {
     return 0;
@@ -179,7 +179,9 @@ export function countClaudeRequestTokens(
   }
 
   // Count system prompt tokens
-  totalTokens += countSystemTokens(requestBody.system, options);
+  if (requestBody.system) {
+    totalTokens += countSystemTokens(requestBody.system, options);
+  }
 
   // Count messages tokens
   totalTokens += countMessagesTokens(requestBody.messages, options);
@@ -229,8 +231,8 @@ export function getLocalTokenCountingConfig(env?: Record<string, string>): {
 } {
   // Check for environment variable
   // In Cloudflare Workers, env is passed via the second parameter
-  // Otherwise fall back to process.env for local development
-  const envVars = env || (typeof process !== 'undefined' ? process.env : {});
+  // Otherwise fall back to globalThis.process.env for local development
+  const envVars = env || (typeof globalThis !== 'undefined' && (globalThis as any).process?.env ? (globalThis as any).process.env as Record<string, string> : {});
 
   const enabled = envVars.LOCAL_TOKEN_COUNTING === 'true' ||
     envVars.LOCAL_TOKEN_COUNTING === '1';

@@ -12,6 +12,8 @@ import { validateBetaFeatures } from './beta-features';
 
 import { validateBetaFeatures as validateBetaFeaturesUtil } from './beta-features';
 
+export { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed, getAllowedHosts };
+
 // Default allowed hosts for SSRF protection
 const DEFAULT_ALLOWED_HOSTS = ['127.0.0.1', 'localhost'];
 
@@ -29,7 +31,7 @@ export interface ParsedRoute {
 /**
  * Validate if a host is allowed based on the ALLOWED_HOSTS environment variable
  */
-export function isHostAllowed(host: string, allowedHostsEnv?: string): boolean {
+function isHostAllowed(host: string, allowedHostsEnv?: string): boolean {
   const allowedHosts = allowedHostsEnv
     ? allowedHostsEnv.split(',').map(h => h.trim().toLowerCase()).filter(h => h.length > 0)
     : DEFAULT_ALLOWED_HOSTS;
@@ -53,7 +55,7 @@ export function isHostAllowed(host: string, allowedHostsEnv?: string): boolean {
 /**
  * Get list of allowed hosts from environment or defaults
  */
-export function getAllowedHosts(allowedHostsEnv?: string): string[] {
+function getAllowedHosts(allowedHostsEnv?: string): string[] {
   if (!allowedHostsEnv) {
     return DEFAULT_ALLOWED_HOSTS;
   }
@@ -72,15 +74,12 @@ export function getAllowedHosts(allowedHostsEnv?: string): string[] {
  * - /https/api.qnaigc.com/openai/v1/models/llama3-70b-8192/v1/messages
  * - /https/api.qnaigc.com/openai/v1/models/llama3-70b-8192/v1/messages/count_tokens
  */
-export function parseDynamicRoute(url: string): ParsedRoute {
+function parseDynamicRoute(url: string): ParsedRoute {
   // Remove leading slash if present
   let path = url.startsWith('/') ? url.slice(1) : url;
 
   // Split by forward slashes
   const parts = path.split('/');
-
-  console.log(`[DEBUG] parseDynamicRoute called with url: ${url}`);
-  console.log(`[DEBUG] Parts: ${JSON.stringify(parts)}`);
 
   if (parts.length < 4) {
     throw new Error(`Invalid URL format: ${url}. Expected format: /{protocol}{host}{path_prefix}/{model_id?}/{claude_endpoint}`);
@@ -111,8 +110,6 @@ export function parseDynamicRoute(url: string): ParsedRoute {
         // Found a potential Claude endpoint
         targetPathEndIndex = i - 1;
         claudeEndpointStartIndex = i;
-        console.log(`[DEBUG] Found Claude endpoint at index ${i}: ${parts[i]}/${nextPart}`);
-        console.log(`[DEBUG] targetPathEndIndex: ${targetPathEndIndex}, claudeEndpointStartIndex: ${claudeEndpointStartIndex}`);
         break;
       }
 
@@ -120,8 +117,6 @@ export function parseDynamicRoute(url: string): ParsedRoute {
         // Found token counting endpoint
         targetPathEndIndex = i - 1;
         claudeEndpointStartIndex = i;
-        console.log(`[DEBUG] Found token counting endpoint at index ${i}: ${parts[i]}/${nextPart}/${twoPartsAhead}`);
-        console.log(`[DEBUG] targetPathEndIndex: ${targetPathEndIndex}, claudeEndpointStartIndex: ${claudeEndpointStartIndex}`);
         break;
       }
     }
@@ -185,7 +180,7 @@ export function parseDynamicRoute(url: string): ParsedRoute {
 /**
  * Build target URL for API request
  */
-export function buildTargetUrl(targetConfig: TargetConfig, endpoint: string, modelId?: string): string {
+function buildTargetUrl(targetConfig: TargetConfig, endpoint: string, modelId?: string): string {
   let url = `${targetConfig.targetUrl}${targetConfig.targetPathPrefix}`;
 
   if (modelId) {
@@ -203,7 +198,7 @@ export function buildTargetUrl(targetConfig: TargetConfig, endpoint: string, mod
  * If X-Api-Key is provided but Authorization is missing,
  * converts X-Api-Key to Authorization: Bearer format.
  */
-export function extractAuthHeaders(request: Request): Record<string, string> {
+function extractAuthHeaders(request: Request): Record<string, string> {
   const headers: Record<string, string> = {};
 
   // Extract Authorization header
@@ -220,7 +215,6 @@ export function extractAuthHeaders(request: Request): Record<string, string> {
     } else {
       headers['Authorization'] = `Bearer ${apiKeyHeader}`;
     }
-    console.log(`[DEBUG] Converted X-Api-Key to Authorization header`);
   } else if (authHeader) {
     headers['Authorization'] = authHeader;
   }
@@ -244,7 +238,7 @@ export function extractAuthHeaders(request: Request): Record<string, string> {
 /**
  * Determine handler type based on Claude endpoint
  */
-export function getHandlerType(claudeEndpoint: string): 'models' | 'token-counting' | 'messages' {
+function getHandlerType(claudeEndpoint: string): 'models' | 'token-counting' | 'messages' {
   if (claudeEndpoint === 'v1/models') {
     return 'models';
   }

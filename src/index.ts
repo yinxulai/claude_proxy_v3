@@ -7,6 +7,7 @@
 import { Env } from './types/shared';
 import { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed } from './utils/routing';
 import { createErrorResponse } from './utils/errors';
+import { createLogger } from './utils/logger';
 import { handleModelsRequest } from './handlers/models';
 import { handleTokenCountingRequest } from './handlers/token-counting';
 import { handleMessagesRequest } from './handlers/messages';
@@ -151,6 +152,7 @@ function parseFixedRoute(path: string, env: Env): { targetUrl: string; targetEnd
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = generateRequestId();
+    const logger = createLogger(env as Record<string, unknown>);
 
     try {
       // Handle CORS preflight
@@ -172,7 +174,7 @@ export default {
         const sizeInBytes = parseInt(contentLength, 10);
         const maxSizeBytes = 10 * 1024 * 1024; // 10MB
         if (sizeInBytes > maxSizeBytes) {
-          console.warn(`[${requestId}] Request body too large: ${sizeInBytes} bytes`);
+          logger.warn(requestId, `Request body too large: ${sizeInBytes} bytes`);
           return createErrorResponse(new Error('Request body too large'), requestId, 413);
         }
       }
@@ -191,7 +193,7 @@ export default {
         // SSRF protection: validate host against whitelist
         const host = targetConfig.targetUrl.replace(/^https?:\/\//, '');
         if (!isHostAllowed(host, env.ALLOWED_HOSTS)) {
-          console.warn(`[${requestId}] Host not allowed: ${host}. Allowed hosts: ${env.ALLOWED_HOSTS || '127.0.0.1, localhost'}`);
+          logger.warn(requestId, `Host not allowed: ${host}. Allowed hosts: ${env.ALLOWED_HOSTS || '127.0.0.1, localhost'}`);
           return createErrorResponse(new Error('Host not allowed'), requestId, 403);
         }
 
@@ -219,15 +221,15 @@ export default {
       let response: Response;
       switch (handlerType) {
         case 'models':
-          response = await handleModelsRequest(request, targetUrl, authHeaders, requestId);
+          response = await handleModelsRequest(request, targetUrl, authHeaders, requestId, logger);
           break;
 
         case 'token-counting':
-          response = await handleTokenCountingRequest(request, targetUrl, authHeaders, requestId, env);
+          response = await handleTokenCountingRequest(request, targetUrl, authHeaders, requestId, env, logger);
           break;
 
         case 'messages':
-          response = await handleMessagesRequest(request, targetUrl, authHeaders, requestId, modelId, env);
+          response = await handleMessagesRequest(request, targetUrl, authHeaders, requestId, modelId, env, logger);
           break;
 
         default:
@@ -239,7 +241,7 @@ export default {
 
     } catch (error) {
       // Handle errors with Claude API format (without exposing sensitive info)
-      console.error(`[${requestId}] Error: ${(error as Error).message}`);
+      logger.error(requestId, `Error: ${(error as Error).message}`);
       return createErrorResponse(error as Error, requestId);
     }
   },

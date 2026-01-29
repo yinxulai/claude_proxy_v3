@@ -10,6 +10,7 @@
  */
 
 import { Env } from '../types/shared';
+import { Logger, createLogger } from '../utils/logger';
 import { ClaudeTokenCountingRequest, ClaudeTokenCountingResponse } from '../types/claude';
 import { OpenAIResponse, OpenAITokenCountingRequest } from '../types/openai';
 import { convertClaudeTokenCountingToOpenAI } from '../converters/claude-to-openai';
@@ -29,6 +30,7 @@ import {
  * @param authHeaders - Authentication headers
  * @param requestId - Request ID for logging
  * @param env - Environment variables (Cloudflare Workers)
+ * @param logger - Logger instance
  * @returns Response with token count
  */
 export async function handleTokenCountingRequest(
@@ -36,8 +38,10 @@ export async function handleTokenCountingRequest(
   targetUrl: string,
   authHeaders: Record<string, string>,
   requestId: string,
-  env?: Env
+  env?: Env,
+  logger?: Logger
 ): Promise<Response> {
+  const activeLogger = logger ?? createLogger((env ?? {}) as Record<string, unknown>);
   // Parse request body
   const requestBody = await request.json() as ClaudeTokenCountingRequest;
   const claudeRequest = requestBody;
@@ -55,12 +59,12 @@ export async function handleTokenCountingRequest(
   const localConfig = getLocalTokenCountingConfig(env as unknown as Record<string, string> | undefined);
 
   if (localConfig.enabled) {
-    console.log(`[${requestId}] [INFO] Using local token counting (factor: ${localConfig.factor})`);
-    return handleLocalTokenCounting(claudeRequest, requestId, localConfig);
+    activeLogger.info(requestId, `Using local token counting (factor: ${localConfig.factor})`);
+    return handleLocalTokenCounting(claudeRequest, requestId, localConfig, activeLogger);
   }
 
   // Fall back to API-based token counting
-  return handleApiBasedTokenCounting(claudeRequest, targetUrl, authHeaders, requestId);
+  return handleApiBasedTokenCounting(claudeRequest, targetUrl, authHeaders, requestId, activeLogger);
 }
 
 /**
@@ -72,7 +76,8 @@ export async function handleTokenCountingRequest(
 function handleLocalTokenCounting(
   claudeRequest: ClaudeTokenCountingRequest,
   requestId: string,
-  localConfig: { enabled: boolean; factor: number }
+  localConfig: { enabled: boolean; factor: number },
+  logger: Logger
 ): Response {
   const options: TokenCountingOptions = {
     useLocalCounting: true,
@@ -83,7 +88,7 @@ function handleLocalTokenCounting(
   // Count tokens using local estimation
   const inputTokens = countClaudeRequestTokens(claudeRequest, options);
 
-  console.log(`[${requestId}] [DEBUG] Local token count: ${inputTokens}`);
+  logger.debug(requestId, `Local token count: ${inputTokens}`);
 
   const response: ClaudeTokenCountingResponse = {
     type: "token_count",
@@ -112,7 +117,8 @@ async function handleApiBasedTokenCounting(
   claudeRequest: ClaudeTokenCountingRequest,
   targetUrl: string,
   authHeaders: Record<string, string>,
-  requestId: string
+  requestId: string,
+  logger: Logger
 ): Promise<Response> {
   // Convert Claude request to OpenAI format
   const openaiRequest: OpenAITokenCountingRequest = convertClaudeTokenCountingToOpenAI(
@@ -128,9 +134,9 @@ async function handleApiBasedTokenCounting(
   }
 
   // Log request info (without auth keys for security)
-  console.log(`[${requestId}] [DEBUG] Upstream request url: ${targetUrl}`);
-  console.log(`[${requestId}] [DEBUG] Has auth headers:`, !!authHeaders['Authorization'] || !!authHeaders['x-api-key']);
-  console.log(`[${requestId}] [INFO] Using API-based token counting (may incur costs)`);
+  logger.debug(requestId, `Upstream request url: ${targetUrl}`);
+  logger.debug(requestId, `Has auth headers: ${!!authHeaders['Authorization'] || !!authHeaders['x-api-key']}`);
+  logger.info(requestId, 'Using API-based token counting (may incur costs)');
 
   // Make request to target API
   const response = await fetch(targetUrl, {
@@ -154,7 +160,7 @@ async function handleApiBasedTokenCounting(
 
   // Extract input tokens from usage
   const inputTokens = openaiResponse.usage?.prompt_tokens ?? 0;
-  console.log(`[${requestId}] [DEBUG] Token count: ${inputTokens}`);
+  logger.debug(requestId, `Token count: ${inputTokens}`);
 
   // Build Claude format response
   const claudeResponse: ClaudeTokenCountingResponse = {

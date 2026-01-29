@@ -5,6 +5,7 @@
  */
 
 import { Env } from '../types/shared';
+import { Logger, createLogger } from '../utils/logger';
 import { ClaudeMessagesRequest, ClaudeMessagesResponse } from '../types/claude';
 import { OpenAIRequest, OpenAIResponse } from '../types/openai';
 import { convertClaudeToOpenAIRequest } from '../converters/claude-to-openai';
@@ -22,8 +23,10 @@ export async function handleMessagesRequest(
   authHeaders: Record<string, string>,
   requestId: string,
   modelId?: string,
-  env?: Env
+  env?: Env,
+  logger?: Logger
 ): Promise<Response> {
+  const activeLogger = logger ?? createLogger((env ?? {}) as Record<string, unknown>);
   // Parse request body
   const requestBody = await request.json() as ClaudeMessagesRequest;
   const claudeRequest = requestBody;
@@ -53,9 +56,10 @@ export async function handleMessagesRequest(
   const isStreaming = claudeRequest.stream === true;
 
   // Log request info (without auth keys for security)
-  console.log(`[${requestId}] [DEBUG] Upstream request url: ${targetUrl}`);
-  console.log(`[${requestId}] [DEBUG] Has auth headers:`, !!authHeaders['Authorization'] || !!authHeaders['x-api-key']);
-  console.log(`[${requestId}] [DEBUG] Is streaming:`, isStreaming);
+  console.debug(requestId, `Upstream request url: ${targetUrl}`);
+  activeLogger.debug(requestId, `Upstream request url: ${targetUrl}`);
+  activeLogger.debug(requestId, `Has auth headers: ${!!authHeaders['Authorization'] || !!authHeaders['x-api-key']}`);
+  activeLogger.debug(requestId, `Is streaming: ${isStreaming}`);
   const response = await fetch(targetUrl, {
     method: 'POST',
     headers: {
@@ -72,11 +76,11 @@ export async function handleMessagesRequest(
 
   // Handle streaming response
   if (isStreaming) {
-    return handleStreamingResponse(response, targetModelId, requestId);
+    return handleStreamingResponse(response, targetModelId, requestId, activeLogger);
   }
 
   // Handle non-streaming response
-  return handleNonStreamingResponse(response, targetModelId, requestId);
+  return handleNonStreamingResponse(response, targetModelId, requestId, activeLogger);
 }
 
 /**
@@ -85,12 +89,13 @@ export async function handleMessagesRequest(
 async function handleNonStreamingResponse(
   response: Response,
   model: string,
-  requestId: string
+  requestId: string,
+  logger: Logger
 ): Promise<Response> {
   try {
     // Parse target API response
     const responseText = await response.text();
-    console.log(`[${requestId}] [DEBUG] Upstream response body.`);
+    logger.debug(requestId, 'Upstream response body.');
 
     const openaiResponse: OpenAIResponse = JSON.parse(responseText);
 
@@ -110,7 +115,7 @@ async function handleNonStreamingResponse(
       },
     });
   } catch (error) {
-    console.error(`[${requestId}] Error converting response:`, error);
+    logger.error(requestId, `Error converting response: ${(error as Error).message}`);
     throw new Error(`Failed to convert response: ${(error as Error).message}`);
   }
 }
@@ -121,7 +126,8 @@ async function handleNonStreamingResponse(
 async function handleStreamingResponse(
   response: Response,
   model: string,
-  requestId: string
+  requestId: string,
+  logger: Logger
 ): Promise<Response> {
   // Check if response body exists and is readable
   if (!response.body) {
@@ -132,7 +138,7 @@ async function handleStreamingResponse(
 
   try {
     // Log streaming response
-    console.log(`[${requestId}] [DEBUG] Upstream streaming response started`);
+    logger.debug(requestId, 'Upstream streaming response started');
 
     // Create streaming transformer
     const transformer = createStreamTransformer(model, requestId);
@@ -156,7 +162,7 @@ async function handleStreamingResponse(
               if (line.startsWith('data: ')) {
                 const data = line.substring(6);
                 if (data.trim() !== '[DONE]') {
-                  console.log(`[${requestId}] [DEBUG] Upstream SSE chunk:`, data);
+                  logger.debug(requestId, `Upstream SSE chunk: ${data}`);
                 }
               }
             }
@@ -164,7 +170,7 @@ async function handleStreamingResponse(
           }
         }
       } catch (e) {
-        console.error(`[${requestId}] Error logging raw chunks:`, e);
+        logger.error(requestId, `Error logging raw chunks: ${(e as Error).message}`);
       }
     };
 
@@ -186,7 +192,7 @@ async function handleStreamingResponse(
       },
     });
   } catch (error) {
-    console.error(`[${requestId}] Error creating streaming response:`, error);
+    logger.error(requestId, `Error creating streaming response: ${(error as Error).message}`);
     throw new Error(`Failed to create streaming response: ${(error as Error).message}`);
   }
 }

@@ -4,6 +4,7 @@
  * Handles GET /v1/models endpoint
  */
 
+import { Logger } from '../utils/logger';
 import { ClaudeModelsResponse } from '../types/claude';
 import { OpenAIModelsResponse } from '../types/openai';
 import { convertOpenAIModelsToClaude } from '../converters/openai-to-claude';
@@ -17,7 +18,8 @@ export async function handleModelsRequest(
   request: Request,
   targetUrl: string,
   authHeaders: Record<string, string>,
-  requestId: string
+  requestId: string,
+  logger: Logger
 ): Promise<Response> {
   // Parse query parameters
   const url = new URL(request.url);
@@ -35,8 +37,8 @@ export async function handleModelsRequest(
   if (limit) targetApiUrl.searchParams.set('limit', limit.toString());
 
   // Log upstream request headers (without auth keys for security)
-  console.log(`[${requestId}] [DEBUG] Upstream request URL:`, targetApiUrl.toString());
-  console.log(`[${requestId}] [DEBUG] Has auth headers:`, !!authHeaders['Authorization'] || !!authHeaders['x-api-key']);
+  logger.debug(requestId, `Upstream request URL: ${targetApiUrl.toString()}`);
+  logger.debug(requestId, `Has auth headers: ${!!authHeaders['Authorization'] || !!authHeaders['x-api-key']}`);
 
   // Make request to target API
   const response = await fetch(targetApiUrl.toString(), {

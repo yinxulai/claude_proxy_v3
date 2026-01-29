@@ -62,6 +62,13 @@ export interface Env {
      * Example: "/api"
      */
     FIXED_ROUTE_PATH_PREFIX?: string;
+
+    /**
+     * Log level for the logger.
+     * Options: debug, info, warn, error
+     * Default: info
+     */
+    LOG_LEVEL?: string;
 }
 
 /**

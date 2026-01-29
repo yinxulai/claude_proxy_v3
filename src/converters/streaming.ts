@@ -25,9 +25,8 @@ export function createStreamTransformer(model: string, requestId: string): Trans
 
     return {
         transform(chunk: Uint8Array, controller: TransformStreamDefaultController) {
-            // Log raw chunk data
+            // Decode chunk for processing
             const chunkText = decoder.decode(chunk, { stream: true });
-            console.log(`[${requestId}] [DEBUG] Raw upstream chunk received:`, chunkText);
         if (!initialized) {
             // Send message_start event with proper headers
             sendEvent(controller, 'message_start', {

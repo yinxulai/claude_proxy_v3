@@ -54,16 +54,13 @@ export function validateBetaFeatures(headerValue: string | null): AnthropicBeta[
             if (VALID_BETA_FEATURES.includes(feature as any)) {
                 validFeatures.push(feature as AnthropicBeta);
             } else {
-                console.warn(`Unknown beta feature: ${feature}`);
-                // Still forward unknown features, but log warning
+                // Forward unknown features silently
                 validFeatures.push(feature as AnthropicBeta);
             }
         }
 
         return validFeatures;
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.warn(`Failed to parse anthropic-beta header: ${errorMessage}`);
         // Return null to indicate parsing failed, but don't throw
         return null;
     }
@@ -103,21 +100,21 @@ export function validateBetaFeaturesForEndpoint(
     // Endpoint-specific validations
     if (endpoint === 'v1/messages/count_tokens') {
         if (!hasBetaFeature(betaFeatures, 'token-counting-2024-11-01')) {
-            console.warn('Token counting API requires token-counting-2024-11-01 beta feature');
+            // Token counting API requires specific beta feature
         }
     }
 
     // Files API validation (if implemented in future)
     if (endpoint.startsWith('v1/files')) {
         if (!hasBetaFeature(betaFeatures, 'files-api-2025-04-14')) {
-            console.warn('Files API requires files-api-2025-04-14 beta feature');
+            // Files API requires specific beta feature
         }
     }
 
     // Skills API validation (if implemented in future)
     if (endpoint.startsWith('v1/skills')) {
         if (!hasBetaFeature(betaFeatures, 'skills-2025-10-02')) {
-            console.warn('Skills API requires skills-2025-10-02 beta feature');
+            // Skills API requires specific beta feature
         }
     }
 }

@@ -32,11 +32,6 @@ export function validateClaudeMessagesRequest(
 
   for (let i = 0; i < request.messages.length; i++) {
     validateClaudeMessage(request.messages[i], `messages[${i}]`, maxImageDataSize);
-
-    // Check for consecutive same-role messages (they will be combined)
-    if (i > 0 && request.messages[i].role === request.messages[i - 1].role) {
-      console.warn(`Consecutive ${request.messages[i].role} messages at index ${i} will be combined into a single turn`);
-    }
   }
 
   // Validate model
@@ -352,11 +347,6 @@ export function validateClaudeTokenCountingRequest(
 
   for (let i = 0; i < request.messages.length; i++) {
     validateClaudeMessage(request.messages[i], `messages[${i}]`, maxImageDataSize);
-
-    // Check for consecutive same-role messages (they will be combined)
-    if (i > 0 && request.messages[i].role === request.messages[i - 1].role) {
-      console.warn(`Consecutive ${request.messages[i].role} messages at index ${i} will be combined into a single turn`);
-    }
   }
 
   // Validate thinking parameter
