@@ -26,10 +26,19 @@ const env = {
 const server = (0, http_1.createServer)(async (req, res) => {
     try {
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const bodyStream = ['GET', 'HEAD'].includes(req.method || '')
+            ? undefined
+            : new ReadableStream({
+                start(controller) {
+                    req.on('data', (chunk) => controller.enqueue(chunk));
+                    req.on('end', () => controller.close());
+                    req.on('error', (err) => controller.error(err));
+                },
+            });
         const request = new Request(url.toString(), {
             method: req.method,
             headers: req.headers,
-            body: ['GET', 'HEAD'].includes(req.method || '') ? undefined : req,
+            body: bodyStream,
         });
         const response = await index_1.default.fetch(request, env);
         res.writeHead(response.status, Object.fromEntries(response.headers.entries()));

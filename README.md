@@ -67,6 +67,17 @@ Refer to `Dockerfile`
 # npm run deploy
 ```
 
+High performance deploy advices
+
+```bash
+npm install -g pm2
+pm2 start src/server.ts -i 8
+
+# or
+npm run build && npm run start
+
+```
+
 ### 5. Test One Model or Test All Models
 
 comparing and testing API

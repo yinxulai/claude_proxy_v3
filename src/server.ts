@@ -33,10 +33,20 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
+    const bodyStream = ['GET', 'HEAD'].includes(req.method || '')
+      ? undefined
+      : new ReadableStream({
+          start(controller) {
+            req.on('data', (chunk) => controller.enqueue(chunk));
+            req.on('end', () => controller.close());
+            req.on('error', (err) => controller.error(err));
+          },
+        });
+
     const request = new Request(url.toString(), {
       method: req.method,
       headers: req.headers as Record<string, string>,
-      body: ['GET', 'HEAD'].includes(req.method || '') ? undefined : req,
+      body: bodyStream,
     });
 
     const response = await handler.fetch(request, env);
