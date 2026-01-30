@@ -4,13 +4,6 @@
 
 export interface Env {
     /**
-     * Pre-configured route for a "haiku" model for easier access.
-     */
-    HAIKU_MODEL_NAME?: string;
-    HAIKU_BASE_URL?: string;
-    HAIKU_API_KEY?: string;
-
-    /**
      * Enable local token counting (no API call).
      * Set to "true" or "1" to enable.
      */

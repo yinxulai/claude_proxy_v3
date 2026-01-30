@@ -34,15 +34,12 @@ npm install
 
 ### 2. Configure
 
-Edit `wrangler.toml` to set your environment variables:
+Edit `src/server.ts` or `wrangler.toml` to set your environment variables:
 
 Counting tokens with local `tiktoken` when setting `LOCAL_TOKEN_COUNTING` to `true` 
 
 ```toml
 [vars]
-HAIKU_MODEL_NAME = "claude-3-haiku-20240307"
-HAIKU_BASE_URL = "https://api.anthropic.com"
-HAIKU_API_KEY = "your-api-key-here"
 LOCAL_TOKEN_COUNTING = "false"
 LOCAL_TOKEN_COUNTING_FACTOR = "4"
 ```
@@ -55,6 +52,7 @@ npm run dev
 
 or
 ```bash
+npm install typescript
 npx tsc -p tsconfig.server.json
 node dist/server.js
 ```
@@ -62,6 +60,25 @@ node dist/server.js
 ### 4. Deploy
 
 Refer to `Dockerfile`
+Build
+```bash
+sudo docker build -t claude-proxy-v3 .
+```
+If pending at `RUN npm install` ...,
+Edit `/etc/docker/daemon.json`:
+```json
+  {
+    "dns": ["8.8.8.8", "8.8.4.4"]
+  }
+```
+Then restart Docker: 
+```bash
+sudo systemctl restart docker
+```
+Run it
+```bash
+sudo docker run -p 8788:8788 claude-proxy-v3
+```
 
 ```bash
 # npm run deploy
@@ -69,9 +86,11 @@ Refer to `Dockerfile`
 
 High performance deploy advices
 
+Run like a cluster
 ```bash
 npm install -g pm2
-pm2 start src/server.ts -i 8
+npx tsc -p tsconfig.server.json
+pm2 start dist/server.js -i 4
 
 # or
 npm run build && npm run start
