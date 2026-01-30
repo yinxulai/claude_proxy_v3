@@ -11,6 +11,8 @@ A complete Claude API proxy new implementation that supports the full Claude API
 
 - **Extended Thinking Support**: Built-in support for Claude's thinking configuration with budget tokens
 
+- **Domain Whitelist Security**: Only allows requests to trusted domains (qiniu.com, sufy.com, qnaigc.com) to prevent abuse and SSRF attacks. See [DOMAIN_WHITELIST.md](docs/DOMAIN_WHITELIST.md) for details.
+
 - **Dynamic Routing**: Route requests to any OpenAI-compatible API using URL patterns:
   - `/https/api.qnaigc.com/v1/models`
   - `/https/api.qnaigc.com/v1/messages`
@@ -36,12 +38,12 @@ npm install
 
 Edit `src/server.ts` or `wrangler.toml` to set your environment variables:
 
-Counting tokens with local `tiktoken` when setting `LOCAL_TOKEN_COUNTING` to `true` 
+Counting tokens with local `tiktoken`(default model `cl100k_base`) when setting `LOCAL_TOKEN_COUNTING` to `true` 
+or consuming tokens from the upstream API to response with 'usage' field.
 
 ```toml
 [vars]
 LOCAL_TOKEN_COUNTING = "false"
-LOCAL_TOKEN_COUNTING_FACTOR = "4"
 ```
 
 ### 3. Develop Locally
@@ -54,7 +56,9 @@ or
 ```bash
 npm install typescript
 npx tsc -p tsconfig.server.json
-node dist/server.js
+LOCAL_TOKEN_COUNTING=true npx tsx dist/server.js
+
+#node dist/server.js
 ```
 
 ### 4. Deploy
@@ -88,13 +92,16 @@ High performance deploy advices
 
 Run like a cluster
 ```bash
-npm install -g pm2
-npx tsc -p tsconfig.server.json
-pm2 start dist/server.js -i 4
+# npm install -g pm2
+# npx tsc -p tsconfig.server.json
+# pm2 start dist/server.js -i 4
+# pm2 ls
+# pm2 stop all
 
 # or
-npm run build && npm run start
+LOCAL_TOKEN_COUNTING=true npx tsx dist/server.js
 
+npm run build && npm run start
 ```
 
 ### 5. Test One Model or Test All Models

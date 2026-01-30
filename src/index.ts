@@ -5,7 +5,7 @@
  */
 
 import { Env } from './types/shared';
-import { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed } from './utils/routing';
+import { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed, isWhitelistedDomain } from './utils/routing';
 import { createErrorResponse } from './utils/errors';
 import { createLogger } from './utils/logger';
 import { handleModelsRequest } from './handlers/models';
@@ -17,6 +17,34 @@ import { handleMessagesRequest } from './handlers/messages';
  */
 function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Extract safe request headers for logging (exclude sensitive values)
+ */
+function getSafeRequestHeaders(request: Request): Record<string, string> {
+  const allowedHeaders = new Set([
+    'content-type',
+    'content-length',
+    'user-agent',
+    'accept',
+    'origin',
+    'referer',
+    'anthropic-beta',
+    'x-request-id',
+    'cf-connecting-ip',
+    'x-forwarded-for',
+  ]);
+
+  const result: Record<string, string> = {};
+  request.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (allowedHeaders.has(lowerKey)) {
+      result[lowerKey] = value;
+    }
+  });
+
+  return result;
 }
 
 /**
@@ -116,7 +144,7 @@ function isDynamicRoute(path: string): boolean {
  * Uses FIXED_ROUTE_TARGET_URL and FIXED_ROUTE_PATH_PREFIX from env
  */
 function parseFixedRoute(path: string, env: Env): { targetUrl: string; targetEndpoint: string } {
-  const baseUrl = env.FIXED_ROUTE_TARGET_URL || 'https://api.example.com';
+  const baseUrl = env.FIXED_ROUTE_TARGET_URL || 'https://api.qnaigc.com';
   const pathPrefix = env.FIXED_ROUTE_PATH_PREFIX || '';
 
   // Fixed route mapping: /v1/messages -> /v1/chat/completions
@@ -153,18 +181,53 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = generateRequestId();
     const logger = createLogger(env as Record<string, unknown>);
+    const startTime = Date.now();
 
     try {
       // Handle CORS preflight
       if (request.method === 'OPTIONS') {
+        logger.info(requestId, `CORS preflight: ${request.method} ${request.url}`);
         return handleOptionsRequest(request, env);
       }
 
       const url = new URL(request.url);
       const path = url.pathname;
 
+      logger.info(requestId, `Incoming request: ${request.method} ${url.pathname}${url.search}`);
+      logger.debug(requestId, `Request headers: ${JSON.stringify(getSafeRequestHeaders(request))}`);
+
+      // Handle root path - return application status
+      if (path === '/') {
+        const statusInfo = {
+          name: 'Claude Proxy v3',
+          version: '3.0.0',
+          status: 'running',
+          description: 'Claude API Proxy - Converts Claude API requests to OpenAI format',
+          features: [
+            'Claude to OpenAI format conversion',
+            'Dynamic routing support',
+            'Token counting (local and API-based)',
+            'Streaming support',
+            'Extended thinking support',
+            'SSRF protection',
+            'Domain whitelist'
+          ],
+          timestamp: new Date().toISOString()
+        };
+        
+        logger.info(requestId, 'Application status requested');
+        return new Response(JSON.stringify(statusInfo, null, 2), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-request-id': requestId,
+          },
+        });
+      }
+
       // Skip favicon requests
       if (path === '/favicon.ico') {
+        logger.info(requestId, 'Favicon request ignored');
         return new Response(null, { status: 204 });
       }
 
@@ -177,6 +240,7 @@ export default {
           logger.warn(requestId, `Request body too large: ${sizeInBytes} bytes`);
           return createErrorResponse(new Error('Request body too large'), requestId, 413);
         }
+        logger.debug(requestId, `Request content-length: ${sizeInBytes} bytes`);
       }
 
       let targetUrl: string;
@@ -190,8 +254,16 @@ export default {
         const { targetConfig, claudeEndpoint } = parsedRoute;
         modelId = parsedRoute.modelId;
 
-        // SSRF protection: validate host against whitelist
+        // Extract host from target URL
         const host = targetConfig.targetUrl.replace(/^https?:\/\//, '');
+        
+        // Domain whitelist check: only allow qiniu.com, sufy.com, qnaigc.com domains
+        if (!isWhitelistedDomain(host)) {
+          logger.warn(requestId, `Domain not in whitelist: ${host}. Only qiniu.com, sufy.com, and qnaigc.com domains are allowed.`);
+          return createErrorResponse(new Error('Domain not in whitelist. Only qiniu.com, sufy.com, and qnaigc.com domains are allowed.'), requestId, 403);
+        }
+
+        // SSRF protection: validate host against whitelist
         if (!isHostAllowed(host, env.ALLOWED_HOSTS)) {
           logger.warn(requestId, `Host not allowed: ${host}. Allowed hosts: ${env.ALLOWED_HOSTS || '127.0.0.1, localhost'}`);
           return createErrorResponse(new Error('Host not allowed'), requestId, 403);
@@ -199,10 +271,25 @@ export default {
 
         handlerType = getHandlerType(claudeEndpoint);
         targetUrl = buildTargetUrl(targetConfig, claudeEndpoint, modelId);
+        logger.info(requestId, `Routing (dynamic): ${handlerType} -> ${targetUrl}`);
       } else {
         // Fixed routing: /v1/messages -> /v1/chat/completions
         const fixedRoute = parseFixedRoute(path, env);
         targetUrl = fixedRoute.targetUrl;
+        
+        // Domain whitelist check for fixed routes
+        try {
+          const targetUrlObj = new URL(targetUrl);
+          const host = targetUrlObj.hostname;
+          
+          if (!isWhitelistedDomain(host)) {
+            logger.warn(requestId, `Domain not in whitelist: ${host}. Only qiniu.com, sufy.com, and qnaigc.com domains are allowed.`);
+            return createErrorResponse(new Error('Domain not in whitelist. Only qiniu.com, sufy.com, and qnaigc.com domains are allowed.'), requestId, 403);
+          }
+        } catch (urlError) {
+          logger.error(requestId, `Invalid target URL: ${targetUrl}`);
+          return createErrorResponse(new Error('Invalid target URL configuration'), requestId, 500);
+        }
 
         // Map endpoint to handler type
         if (fixedRoute.targetEndpoint === 'v1/models') {
@@ -212,6 +299,7 @@ export default {
         } else {
           handlerType = 'messages';
         }
+        logger.info(requestId, `Routing (fixed): ${handlerType} -> ${targetUrl}`);
       }
 
       // Extract authentication headers
@@ -237,11 +325,15 @@ export default {
       }
 
       // Apply CORS headers
-      return applyCorsHeaders(response, request, env);
+      const responseWithCors = applyCorsHeaders(response, request, env);
+      const durationMs = Date.now() - startTime;
+      logger.info(requestId, `Response: ${response.status} (${durationMs}ms)`);
+      return responseWithCors;
 
     } catch (error) {
       // Handle errors with Claude API format (without exposing sensitive info)
-      logger.error(requestId, `Error: ${(error as Error).message}`);
+      const durationMs = Date.now() - startTime;
+      logger.error(requestId, `Error after ${durationMs}ms: ${(error as Error).message}`);
       return createErrorResponse(error as Error, requestId);
     }
   },

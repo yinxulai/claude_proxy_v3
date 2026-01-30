@@ -5,14 +5,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN sed -i 's/"dev": "wrangler dev",\r$//' package.json
-RUN sed -i 's/"dev": "wrangler deploy",\r$//' package.json
-#RUN sed -i 's/"tiktoken": "^1.0.15",\r$//' package.json
-RUN sed -i 's/"wrangler": "^4.60.0"\r$//' package.json
-RUN cat package.json
-RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf
-RUN echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-RUN npm install --no-audit --no-fund --loglevel verbose
+RUN npm install --no-audit --no-fund
 
 # Copy source
 COPY tsconfig.json ./
@@ -32,24 +25,21 @@ WORKDIR /app
 
 # Install production dependencies
 COPY package*.json ./
-RUN sed -i 's/"dev": "wrangler dev",\r$//' package.json
-RUN sed -i 's/"dev": "wrangler deploy",\r$//' package.json
-#RUN sed -i 's/"tiktoken": "^1.0.15",\r$//' package.json
-RUN sed -i 's/"wrangler": "^4.60.0"\r$//' package.json
-RUN cat package.json
-RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf
-RUN echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-RUN npm install --only=production --no-audit --no-fund --loglevel verbose
+RUN npm install --only=production --no-audit --no-fund
 
 # Copy built files
 COPY --from=builder /app/dist/ ./dist/
 COPY wrangler.toml ./
+
+#ENV
+ENV LOCAL_TOKEN_COUNTING=true
 
 # Expose port
 EXPOSE 8788
 
 # Run the server
 # CMD ["pm2", "start", "src/server.ts", "-i", "8"]
-CMD ["npm", "run", "start"]
+CMD ["npx", "tsx", "dist/server.js"]
+# CMD ["npm", "run", "start"]
 # CMD ["node", "dist/server.js"]
 # CMD ["npm", "run", "dev"]

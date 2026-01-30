@@ -39,8 +39,13 @@ export async function handleModelsRequest(
   // Log upstream request headers (without auth keys for security)
   logger.debug(requestId, `Upstream request URL: ${targetApiUrl.toString()}`);
   logger.debug(requestId, `Has auth headers: ${!!authHeaders['Authorization'] || !!authHeaders['x-api-key']}`);
+  logger.info(
+    requestId,
+    `Models request params: after_id=${afterId ?? 'n/a'} before_id=${beforeId ?? 'n/a'} limit=${limit ?? 'n/a'}`
+  );
 
   // Make request to target API
+  const upstreamStart = Date.now();
   const response = await fetch(targetApiUrl.toString(), {
     method: 'GET',
     headers: {
@@ -48,6 +53,13 @@ export async function handleModelsRequest(
       ...authHeaders,
     },
   });
+
+  const upstreamDurationMs = Date.now() - upstreamStart;
+  const upstreamContentLength = response.headers.get('content-length') ?? 'unknown';
+  logger.info(
+    requestId,
+    `Upstream response: ${response.status} (${upstreamDurationMs}ms) content-length=${upstreamContentLength}`
+  );
 
   // Handle target API errors
   if (!response.ok) {

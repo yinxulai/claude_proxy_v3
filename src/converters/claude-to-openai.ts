@@ -115,12 +115,12 @@ function convertClaudeThinkingToOpenAI(thinking: ThinkingConfigParam | undefined
 
     if (thinking.type === 'enabled') {
         return {
-            enabled: true,
+            type: "enabled",
             budget_tokens: thinking.budget_tokens
         };
     } else if (thinking.type === 'disabled') {
         return {
-            enabled: false
+             type: "disabled",
         };
     }
 

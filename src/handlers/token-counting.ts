@@ -7,6 +7,7 @@
  * - Supports both API-based and local token counting
  * - Local counting is enabled via LOCAL_TOKEN_COUNTING=true environment variable
  * - Falls back to API-based counting if local counting is disabled or fails
+ * - Uses tiktoken for accurate BPE token counting when LOCAL_TIKTOKEN=true
  */
 
 import { Env } from '../types/shared';
@@ -19,7 +20,8 @@ import { handleTargetApiError } from '../utils/errors';
 import {
   countClaudeRequestTokens,
   getLocalTokenCountingConfig,
-  TokenCountingOptions
+  TokenCountingOptions,
+  getTiktokenTokenizer,
 } from '../utils/token-counting';
 
 /**
@@ -46,6 +48,12 @@ export async function handleTokenCountingRequest(
   const requestBody = await request.json() as ClaudeTokenCountingRequest;
   const claudeRequest = requestBody;
 
+  const messageCount = Array.isArray(claudeRequest.messages) ? claudeRequest.messages.length : 0;
+  activeLogger.info(
+    requestId,
+    `Claude token count request: model=${claudeRequest.model} messages=${messageCount}`
+  );
+
   // Calculate max image data size from environment or use default
   const maxImageDataSize = env?.IMAGE_BLOCK_DATA_MAX_SIZE
     ? parseInt(env.IMAGE_BLOCK_DATA_MAX_SIZE, 10)
@@ -59,7 +67,6 @@ export async function handleTokenCountingRequest(
   const localConfig = getLocalTokenCountingConfig(env as unknown as Record<string, string> | undefined);
 
   if (localConfig.enabled) {
-    activeLogger.info(requestId, `Using local token counting (factor: ${localConfig.factor})`);
     return handleLocalTokenCounting(claudeRequest, requestId, localConfig, activeLogger);
   }
 
@@ -68,27 +75,54 @@ export async function handleTokenCountingRequest(
 }
 
 /**
- * Handle token counting using local estimation
+ * Handle token counting using local estimation or tiktoken
  *
- * This uses a character-based approximation for token counting.
+ * This uses character-based approximation or tiktoken BPE encoding.
  * No API call is made, making it free and fast.
  */
-function handleLocalTokenCounting(
+async function handleLocalTokenCounting(
   claudeRequest: ClaudeTokenCountingRequest,
   requestId: string,
-  localConfig: { enabled: boolean; factor: number },
+  localConfig: { enabled: boolean; useTiktoken: boolean; modelName: string; bpeUrl?: string },
   logger: Logger
-): Response {
-  const options: TokenCountingOptions = {
-    useLocalCounting: true,
-    charactersPerToken: localConfig.factor,
-    countWhitespace: true,
-  };
+): Promise<Response> {
+  let options: TokenCountingOptions;
+  let countingMethod: 'tiktoken' | 'estimation';
+  let tokenizerInfo: string = '';
 
-  // Count tokens using local estimation
+  if (localConfig.useTiktoken) {
+    // Initialize tiktoken tokenizer
+    logger.info(requestId, `Initializing tiktoken with model: ${localConfig.modelName}`);
+    try {
+      const tokenizer = await getTiktokenTokenizer(localConfig.modelName, localConfig.bpeUrl);
+      options = {
+        useLocalCounting: true,
+        tokenizer,
+        countWhitespace: true,
+      };
+      countingMethod = 'tiktoken';
+      tokenizerInfo = ` (model: ${localConfig.modelName})`;
+    } catch (error) {
+      logger.warn(requestId, `Failed to initialize tiktoken: ${(error as Error).message}, falling back to estimation`);
+      options = {
+        useLocalCounting: true,
+        countWhitespace: true,
+      };
+      countingMethod = 'estimation';
+    }
+  } else {
+    // Use character-based estimation
+    options = {
+      useLocalCounting: true,
+      countWhitespace: true,
+    };
+    countingMethod = 'estimation';
+  }
+
+  // Count tokens
   const inputTokens = countClaudeRequestTokens(claudeRequest, options);
 
-  logger.debug(requestId, `Local token count: ${inputTokens}`);
+  logger.debug(requestId, `Local token count (${countingMethod}): ${inputTokens}${tokenizerInfo}`);
 
   const response: ClaudeTokenCountingResponse = {
     type: "token_count",
@@ -100,7 +134,7 @@ function handleLocalTokenCounting(
     headers: {
       'Content-Type': 'application/json',
       'x-request-id': requestId,
-      'x-token-counting': 'local',
+      'x-token-counting': countingMethod,
     },
   });
 }
@@ -138,7 +172,11 @@ async function handleApiBasedTokenCounting(
   logger.debug(requestId, `Has auth headers: ${!!authHeaders['Authorization'] || !!authHeaders['x-api-key']}`);
   logger.info(requestId, 'Using API-based token counting (may incur costs)');
 
+  // Log full request body before sending
+  console.log(`[${requestId}] Token counting upstream request body:`, JSON.stringify(openaiRequest, null, 2));
+
   // Make request to target API
+  const upstreamStart = Date.now();
   const response = await fetch(targetUrl, {
     method: 'POST',
     headers: {
@@ -147,6 +185,13 @@ async function handleApiBasedTokenCounting(
     },
     body: JSON.stringify(openaiRequest),
   });
+
+  const upstreamDurationMs = Date.now() - upstreamStart;
+  const upstreamContentLength = response.headers.get('content-length') ?? 'unknown';
+  logger.info(
+    requestId,
+    `Upstream response: ${response.status} (${upstreamDurationMs}ms) content-length=${upstreamContentLength}`
+  );
 
   // Handle target API errors
   if (!response.ok) {

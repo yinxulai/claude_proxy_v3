@@ -12,10 +12,13 @@ import { validateBetaFeatures } from './beta-features';
 
 import { validateBetaFeatures as validateBetaFeaturesUtil } from './beta-features';
 
-export { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed, getAllowedHosts };
+export { parseDynamicRoute, getHandlerType, buildTargetUrl, extractAuthHeaders, isHostAllowed, getAllowedHosts, isWhitelistedDomain };
 
 // Default allowed hosts for SSRF protection
 const DEFAULT_ALLOWED_HOSTS = ['127.0.0.1', 'localhost'];
+
+// Domain whitelist for proxy targets
+const WHITELISTED_DOMAINS = ['qiniu.com', 'sufy.com', 'qnaigc.com'];
 
 export interface TargetConfig {
   targetUrl: string;
@@ -60,6 +63,23 @@ function getAllowedHosts(allowedHostsEnv?: string): string[] {
     return DEFAULT_ALLOWED_HOSTS;
   }
   return allowedHostsEnv.split(',').map(h => h.trim()).filter(h => h.length > 0);
+}
+
+/**
+ * Validate if a domain is in the whitelist
+ * Only allows domains ending with qiniu.com, sufy.com, or qnaigc.com
+ */
+function isWhitelistedDomain(host: string): boolean {
+  const normalizedHost = host.toLowerCase();
+  
+  // Remove port if present
+  const hostWithoutPort = normalizedHost.split(':')[0];
+  
+  // Check if the host ends with any of the whitelisted domains
+  return WHITELISTED_DOMAINS.some(domain => {
+    // Must end with the domain (and be preceded by a dot or be the domain itself)
+    return hostWithoutPort === domain || hostWithoutPort.endsWith('.' + domain);
+  });
 }
 
 /**

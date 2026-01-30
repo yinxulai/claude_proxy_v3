@@ -55,11 +55,22 @@ export async function handleMessagesRequest(
   // Check if streaming is requested
   const isStreaming = claudeRequest.stream === true;
 
+  const messageCount = Array.isArray(claudeRequest.messages) ? claudeRequest.messages.length : 0;
+  const toolCount = Array.isArray(claudeRequest.tools) ? claudeRequest.tools.length : 0;
+  activeLogger.info(
+    requestId,
+    `Claude request: model=${claudeRequest.model} stream=${isStreaming} max_tokens=${claudeRequest.max_tokens ?? 'n/a'} messages=${messageCount} tools=${toolCount}`
+  );
+
   // Log request info (without auth keys for security)
-  console.debug(requestId, `Upstream request url: ${targetUrl}`);
   activeLogger.debug(requestId, `Upstream request url: ${targetUrl}`);
   activeLogger.debug(requestId, `Has auth headers: ${!!authHeaders['Authorization'] || !!authHeaders['x-api-key']}`);
   activeLogger.debug(requestId, `Is streaming: ${isStreaming}`);
+  
+  // Log full request body before sending
+  console.log(`[${requestId}] Upstream request body:`, JSON.stringify(openaiRequest, null, 2));
+  
+  const upstreamStart = Date.now();
   const response = await fetch(targetUrl, {
     method: 'POST',
     headers: {
@@ -68,6 +79,13 @@ export async function handleMessagesRequest(
     },
     body: JSON.stringify(openaiRequest),
   });
+
+  const upstreamDurationMs = Date.now() - upstreamStart;
+  const upstreamContentLength = response.headers.get('content-length') ?? 'unknown';
+  activeLogger.info(
+    requestId,
+    `Upstream response: ${response.status} (${upstreamDurationMs}ms) content-length=${upstreamContentLength}`
+  );
 
   // Handle target API errors
   if (!response.ok) {

@@ -73,8 +73,9 @@ export interface OpenAIRequest {
     seed?: number;
     logprobs?: boolean | number;
     top_logprobs?: number;
-    thinking?: {
-        enabled?: boolean;
+    thinking?: { // 透传 claude 的协议（qiniu 要求）
+        // enabled?: boolean;
+        type: "enabled" | "disabled";
         budget_tokens?: number;
     };
 }
